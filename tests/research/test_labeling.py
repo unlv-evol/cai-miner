@@ -10,13 +10,22 @@ import pytest
 
 openpyxl = pytest.importorskip("openpyxl")
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "labeling.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "labeling.py"
 spec = importlib.util.spec_from_file_location("labeling", SCRIPT)
 labeling = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(labeling)
 
-STEP_FIELDS = ["unit_id", "permalink", "scope", "job_id", "step_index", "step_name",
-               "q1_invocation", "q2_agent", "notes"]
+STEP_FIELDS = [
+    "unit_id",
+    "permalink",
+    "scope",
+    "job_id",
+    "step_index",
+    "step_name",
+    "q1_invocation",
+    "q2_agent",
+    "notes",
+]
 FILE_FIELDS = ["unit_id", "permalink", "q1_invocation", "q2_agent", "notes"]
 LINK = "https://github.com/o/r/blob/{}/.github/workflows/w.yml"
 
@@ -33,16 +42,28 @@ def package(tmp_path, monkeypatch):
     """Blank sheets for 3 precision, 2 recall and 2 calibration units, built."""
     src = tmp_path / "validation"
     src.mkdir()
-    step = [{"unit_id": f"V{i:04d}", "permalink": LINK.format(i), "scope": "step",
-             "job_id": "review", "step_index": str(i), "step_name": "Run agent"} for i in range(1, 4)]
+    step = [
+        {
+            "unit_id": f"V{i:04d}",
+            "permalink": LINK.format(i),
+            "scope": "step",
+            "job_id": "review",
+            "step_index": str(i),
+            "step_name": "Run agent",
+        }
+        for i in range(1, 4)
+    ]
     files = [{"unit_id": f"R{i:04d}", "permalink": LINK.format(i)} for i in range(1, 3)]
     for coder in "AB":
         _write(src / f"precision_sheet_{coder}.csv", STEP_FIELDS, step)
         _write(src / f"recall_sheet_{coder}.csv", FILE_FIELDS, files)
-    _write(src / "calibration_sheet.csv", STEP_FIELDS,
-           [dict(step[0], unit_id="C0001"), dict(step[1], unit_id="C0002")])
+    _write(
+        src / "calibration_sheet.csv",
+        STEP_FIELDS,
+        [dict(step[0], unit_id="C0001"), dict(step[1], unit_id="C0002")],
+    )
 
-    def fake_guide(out):            # the real one needs pdflatex
+    def fake_guide(out):  # the real one needs pdflatex
         pdf = out / labeling.GUIDE_PDF
         pdf.write_bytes(b"%PDF-1.4\n")
         return pdf
@@ -70,7 +91,9 @@ def _fill(path: Path, tab: str, answers: dict[str, tuple]) -> None:
 def test_each_coder_gets_only_their_blind_workbook(package):
     _, out = package
     assert sorted(p.name for p in (out / "coder-A").iterdir()) == [
-        "GHAgentCI-coding-guide.pdf", "GHAgentCI-labeling-coder-A.xlsx"]
+        "GHAgentCI-coding-guide.pdf",
+        "GHAgentCI-labeling-coder-A.xlsx",
+    ]
     assert not list((out / "coder-A").glob("*coder-B*"))
     wb = openpyxl.load_workbook(out / "coder-A" / "GHAgentCI-labeling-coder-A.xlsx")
     assert wb.sheetnames == ["Start here", "Codebook", "Precision", "Recall"]
@@ -86,19 +109,27 @@ def test_each_coder_gets_only_their_blind_workbook(package):
 def test_import_writes_normalised_answers_into_the_csv_sheets(package):
     src, out = package
     book = out / "coder-A" / "GHAgentCI-labeling-coder-A.xlsx"
-    _fill(book, "Precision", {"V0001": ("Yes", "Claude", "runs on PRs"),
-                              "V0002": ("no", None, None),
-                              "V0003": ("maybe", "generic_ai", None)})
+    _fill(
+        book,
+        "Precision",
+        {
+            "V0001": ("Yes", "Claude", "runs on PRs"),
+            "V0002": ("no", None, None),
+            "V0003": ("maybe", "generic_ai", None),
+        },
+    )
     _fill(book, "Recall", {"R0001": ("no", None, None), "R0002": ("yes", "codex", "missed!")})
     assert labeling.import_workbook(book, "A", False, src) == 0
     rows = {r["unit_id"]: r for r in csv.DictReader((src / "precision_sheet_A.csv").open())}
     assert (rows["V0001"]["q1_invocation"], rows["V0001"]["q2_agent"]) == ("yes", "claude")
     assert rows["V0001"]["notes"] == "runs on PRs"
-    assert rows["V0001"]["permalink"] == LINK.format(1)        # other columns kept
+    assert rows["V0001"]["permalink"] == LINK.format(1)  # other columns kept
     recall = {r["unit_id"]: r for r in csv.DictReader((src / "recall_sheet_A.csv").open())}
     assert recall["R0002"]["q2_agent"] == "codex"
     # coder B's sheets are untouched
-    assert not any(r["q1_invocation"] for r in csv.DictReader((src / "precision_sheet_B.csv").open()))
+    assert not any(
+        r["q1_invocation"] for r in csv.DictReader((src / "precision_sheet_B.csv").open())
+    )
 
 
 def test_invalid_answers_or_missing_units_write_nothing(package):
@@ -114,7 +145,7 @@ def test_invalid_answers_or_missing_units_write_nothing(package):
 
     _fill(book, "Precision", {"V0001": ("yes", "claude", None)})
     wb = openpyxl.load_workbook(book)
-    wb["Precision"].delete_rows(3)          # a coder deleted unit V0002
+    wb["Precision"].delete_rows(3)  # a coder deleted unit V0002
     wb.save(book)
     assert labeling.import_workbook(book, "B", False, src) == 2
     assert (src / "precision_sheet_B.csv").read_text() == before
@@ -132,8 +163,8 @@ def test_calibration_imports_into_its_own_sheet(package):
 def test_build_refuses_to_overwrite_coded_sheets(package):
     src, out = package
     book = out / "coder-A" / "GHAgentCI-labeling-coder-A.xlsx"
-    _fill(book, "Precision", {u: ("no", None, None) for u in ("V0001", "V0002", "V0003")})
-    _fill(book, "Recall", {u: ("no", None, None) for u in ("R0001", "R0002")})
+    _fill(book, "Precision", dict.fromkeys(("V0001", "V0002", "V0003"), ("no", None, None)))
+    _fill(book, "Recall", dict.fromkeys(("R0001", "R0002"), ("no", None, None)))
     assert labeling.import_workbook(book, "A", False, src) == 0
     with pytest.raises(SystemExit, match="refusing to overwrite"):
         labeling.build(out, src)
@@ -141,3 +172,33 @@ def test_build_refuses_to_overwrite_coded_sheets(package):
 
 def test_link_text_names_repository_and_path():
     assert labeling.link_text(LINK.format("abc")) == "o/r: .github/workflows/w.yml"
+
+
+def test_import_tolerates_padding_rows_from_a_resaved_workbook(package):
+    """Re-saved by a spreadsheet app, a sheet can lose its recorded size and gain
+    empty padding rows, which openpyxl then reads back as empty or short tuples."""
+    src, out = package
+    book = out / "shared" / "GHAgentCI-calibration.xlsx"
+    _fill(book, "Calibration", {"C0001": ("yes", "copilot", None), "C0002": ("no", None, None)})
+    wb = openpyxl.load_workbook(book)
+    ws = wb["Calibration"]
+    for r in range(ws.max_row + 1, ws.max_row + 50):  # formatted but empty rows
+        ws.row_dimensions[r].height = 15
+    wb.save(book)
+    # Drop the <dimension> element, as some applications do, so read-only mode
+    # cannot pad rows to the sheet's width.
+    import re
+    import shutil
+    import zipfile
+
+    tmp = book.with_suffix(".tmp")
+    with zipfile.ZipFile(book) as zin, zipfile.ZipFile(tmp, "w") as zout:
+        for item in zin.infolist():
+            data = zin.read(item.filename)
+            if item.filename.startswith("xl/worksheets/"):
+                data = re.sub(rb"<dimension[^>]*/>", b"", data)
+            zout.writestr(item, data)
+    shutil.move(tmp, book)
+    assert labeling.import_workbook(book, None, True, src) == 0
+    rows = {r["unit_id"]: r for r in csv.DictReader((src / "calibration_sheet.csv").open())}
+    assert rows["C0001"]["q1_invocation"] == "yes" and rows["C0002"]["q1_invocation"] == "no"

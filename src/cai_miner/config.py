@@ -1,11 +1,11 @@
-"""Loading and validation of the awe detector catalogue."""
+"""Loading and validation of the detector catalogue."""
 
 from __future__ import annotations
 
 import re
 import tomllib
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 
 # Evidence kinds ordered by how much confidence they carry.
@@ -22,7 +22,7 @@ from pathlib import Path
 # template that GitHub never reads, so it corroborates rather than decides.
 # `ghaw` is not catalogue-driven: GitHub Agentic Workflows stamp their own
 # manifest into every compiled file, so the framework identifies itself and
-# there is no pattern for an author to declare. See awe/ghaw.py.
+# there is no pattern for an author to declare. See ghaw.py.
 STRONG_EVIDENCE = ("uses", "run", "path", "ghaw")
 WEAK_EVIDENCE = ("url", "env", "job")
 EVIDENCE_KINDS = STRONG_EVIDENCE + WEAK_EVIDENCE
@@ -30,8 +30,13 @@ EVIDENCE_KINDS = STRONG_EVIDENCE + WEAK_EVIDENCE
 # The subset an author may declare under [agents.*] in the catalogue.
 CATALOGUE_KINDS = ("uses", "run", "path", "job", "url", "env")
 
+# Catalogues ship inside the package. The default is the full catalogue GHAgentCI
+# was mined with: the hand-written default.toml merged with marketplace.toml.
+CATALOGUES = Path(__file__).resolve().parent / "catalogues"
+DEFAULT_CATALOGUE = CATALOGUES / "catalogue.toml"
 
-@lru_cache(maxsize=None)
+
+@cache
 def _action_regex(pattern: str) -> re.Pattern:
     """An action reference, bounded so that it names exactly that action.
 
@@ -41,9 +46,7 @@ def _action_regex(pattern: str) -> re.Pattern:
     matches `owner/repo@v1` and `owner/repo/sub@v1` -- a subdirectory action or
     reusable workflow of the same repository -- and nothing else.
     """
-    return re.compile(
-        r"(?<![\w.-])" + re.escape(pattern.lower().strip("/")) + r"(?![\w.-])"
-    )
+    return re.compile(r"(?<![\w.-])" + re.escape(pattern.lower().strip("/")) + r"(?![\w.-])")
 
 
 @dataclass(frozen=True)
@@ -181,7 +184,7 @@ def _load_raw(path: Path, stack: tuple[Path, ...] = ()) -> dict:
     path = path.resolve()
     if path in stack:
         raise ConfigError(f"{path}: include cycle")
-    with open(path, "rb") as handle:
+    with path.open("rb") as handle:
         raw = tomllib.load(handle)
 
     includes = raw.pop("include", [])
@@ -189,7 +192,7 @@ def _load_raw(path: Path, stack: tuple[Path, ...] = ()) -> dict:
         raise ConfigError(f"{path}: include must be a list of paths")
     merged: dict = {}
     for name in includes:
-        merged = _merge(merged, _load_raw(path.parent / name, stack + (path,)))
+        merged = _merge(merged, _load_raw(path.parent / name, (*stack, path)))
     aliases = raw.pop("aliases", {})
     overrides = raw.pop("overrides", {})
     merged = _merge(merged, raw, override=True)
@@ -204,7 +207,7 @@ def _load_raw(path: Path, stack: tuple[Path, ...] = ()) -> dict:
         if target not in agents:
             raise ConfigError(f"{path}: override target '{target}' is not an agent")
         moved = False
-        for key, spec in agents.items():
+        for spec in agents.values():
             kept = [u for u in spec.get("uses", []) if u.lower() != pattern.lower()]
             if len(kept) != len(spec.get("uses", [])):
                 spec["uses"] = kept
@@ -212,12 +215,15 @@ def _load_raw(path: Path, stack: tuple[Path, ...] = ()) -> dict:
         if not moved:
             raise ConfigError(f"{path}: override pattern '{pattern}' matches no uses pattern")
         agents[target].setdefault("uses", []).append(pattern)
-    for key in [k for k, spec in agents.items() if not any(spec.get(kind) for kind in CATALOGUE_KINDS)]:
+    for key in [
+        k for k, spec in agents.items() if not any(spec.get(kind) for kind in CATALOGUE_KINDS)
+    ]:
         del agents[key]  # emptied by overrides
     return merged
 
 
-def load_config(path: str | Path) -> Config:
+def load_config(path: str | Path = DEFAULT_CATALOGUE) -> Config:
+    """Load a detector catalogue, by default the one bundled with the package."""
     raw = _load_raw(Path(path))
 
     paths = raw.get("paths")

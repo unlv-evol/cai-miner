@@ -1,0 +1,38 @@
+{
+  "upload_type": "dataset",
+  "title": "GHAgentCI: A Dataset of Coding-Agent Invocations in CI Workflow Histories",
+  "version": "2026-11-09",
+  "publication_date": "2026-11-09",
+  "access_right": "open",
+  "license": "cc-by-4.0",
+  "creators": [
+    {"name": "Ogenrwot, Daniel", "affiliation": "University of Nevada, Las Vegas", "orcid": "0000-0002-0133-8164"},
+    {"name": "Delgado Cervantes, Jorge Gonzalo", "affiliation": "University of Nevada, Las Vegas", "orcid": "0009-0005-5155-8914"},
+    {"name": "Kim, Woojoong", "affiliation": "University of Nevada, Las Vegas", "orcid": "0009-0007-8068-1035"},
+    {"name": "Businge, John", "affiliation": "University of Nevada, Las Vegas", "orcid": "0000-0003-3206-7085"}
+  ],
+  "keywords": [
+    "mining software repositories",
+    "GitHub Actions",
+    "continuous integration",
+    "coding agents",
+    "agentic workflows",
+    "large language models",
+    "dataset"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementedBy",
+      "identifier": "https://github.com/unlv-evol/cai-miner",
+      "scheme": "url",
+      "resource_type": "software"
+    },
+    {
+      "relation": "isSupplementedBy",
+      "identifier": "https://pypi.org/project/cai-miner/",
+      "scheme": "url",
+      "resource_type": "software"
+    }
+  ],
+  "prereserve_doi": true
+}

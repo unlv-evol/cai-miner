@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
 
 def _load(name: str):
@@ -68,9 +68,7 @@ def test_weighted_precision_weights_strata_by_population():
 
 
 def test_weighted_interval_does_not_collapse_when_every_label_is_correct():
-    p, lo, hi = score_validation.weighted_precision(
-        {"U": (96, 96)}, {"U": 5000}, ("U",)
-    )
+    p, lo, hi = score_validation.weighted_precision({"U": (96, 96)}, {"U": 5000}, ("U",))
     assert p == 1.0
     assert lo < 1.0
 
@@ -113,17 +111,30 @@ def _steps(n_repos: int = 60, seed: int = 1) -> list[dict]:
             agent = rng.choice(["claude", "codex", "copilot", "gemini"])
             sha = f"sha-{r}-{f}"
             for rev in range(rng.randint(1, 5)):  # same content in later revisions
-                rows.append({
-                    "repository": repo, "uid": f"f{f:08d}",
-                    "commit_hash": f"c{r}{f}{rev}", "commit_date": f"2026-0{1 + rev}-01",
-                    "file_path": f".github/workflows/w{f}.yml", "content_sha256": sha,
-                    "parse_ok": parse_ok, "agent": agent,
-                    "scope": "file" if kind in ("path", "ghaw", "env") else "step",
-                    "evidence_kind": kind, "evidence_kinds": kind, "n_evidence": "1",
-                    "pattern": "p", "job_id": "review", "step_index": "0",
-                    "step_name": "Run agent", "action": "", "action_version": "",
-                    "triggers": "pull_request", "tasks": "review",
-                })
+                rows.append(
+                    {
+                        "repository": repo,
+                        "uid": f"f{f:08d}",
+                        "commit_hash": f"c{r}{f}{rev}",
+                        "commit_date": f"2026-0{1 + rev}-01",
+                        "file_path": f".github/workflows/w{f}.yml",
+                        "content_sha256": sha,
+                        "parse_ok": parse_ok,
+                        "agent": agent,
+                        "scope": "file" if kind in ("path", "ghaw", "env") else "step",
+                        "evidence_kind": kind,
+                        "evidence_kinds": kind,
+                        "n_evidence": "1",
+                        "pattern": "p",
+                        "job_id": "review",
+                        "step_index": "0",
+                        "step_name": "Run agent",
+                        "action": "",
+                        "action_version": "",
+                        "triggers": "pull_request",
+                        "tasks": "review",
+                    }
+                )
     return rows
 
 
@@ -140,15 +151,24 @@ def test_sample_has_no_duplicate_units_and_honours_the_repository_cap():
 
 
 def test_generic_group_is_its_own_stratum_whatever_its_evidence():
-    assert sample_validation.stratum_of(
-        {"agent": "generic_ai", "parse_ok": "True", "evidence_kind": "uses"}
-    ) == "X"
-    assert sample_validation.stratum_of(
-        {"agent": "generic_ai", "parse_ok": "False", "evidence_kind": "uses"}
-    ) == "X"
-    assert sample_validation.stratum_of(
-        {"agent": "claude", "parse_ok": "True", "evidence_kind": "uses"}
-    ) == "U"
+    assert (
+        sample_validation.stratum_of(
+            {"agent": "generic_ai", "parse_ok": "True", "evidence_kind": "uses"}
+        )
+        == "X"
+    )
+    assert (
+        sample_validation.stratum_of(
+            {"agent": "generic_ai", "parse_ok": "False", "evidence_kind": "uses"}
+        )
+        == "X"
+    )
+    assert (
+        sample_validation.stratum_of(
+            {"agent": "claude", "parse_ok": "True", "evidence_kind": "uses"}
+        )
+        == "U"
+    )
 
 
 def test_strata_follow_parse_status_before_evidence_kind():
@@ -171,9 +191,12 @@ def test_sampling_is_deterministic_for_a_seed():
 def test_coder_sheets_hide_the_detector_decision(tmp_path):
     steps = tmp_path / "steps.csv"
     _write(steps, _steps())
-    assert sample_validation.main(
-        ["precision", str(steps), "-o", str(tmp_path), "--total", "40", "--floor", "5"]
-    ) == 0
+    assert (
+        sample_validation.main(
+            ["precision", str(steps), "-o", str(tmp_path), "--total", "40", "--floor", "5"]
+        )
+        == 0
+    )
     header = _read(tmp_path / "precision_sheet_A.csv")[0].keys()
     assert "q3_tasks" not in header and "q4_gated" not in header
     for hidden in ("agent", "evidence_kind", "pattern", "tasks", "stratum", "actor_gated"):
@@ -263,14 +286,49 @@ def test_recall_pool_takes_latest_revision_of_never_agentic_keyword_files(tmp_pa
     }
     for sha, text in files.items():
         (content / f"{sha}.yml").write_text(text)
-    base = {"repository": "o/r", "commit_hash": "c", "file_path": "w.yml",
-            "agents": "", "parse_ok": "True"}
+    base = {
+        "repository": "o/r",
+        "commit_hash": "c",
+        "file_path": "w.yml",
+        "agents": "",
+        "parse_ok": "True",
+    }
     revisions = [
-        {**base, "uid": "f1", "commit_date": "2026-01-01", "content_sha256": "old", "agentic": "False"},
-        {**base, "uid": "f1", "commit_date": "2026-02-01", "content_sha256": "new", "agentic": "False"},
-        {**base, "uid": "f2", "commit_date": "2026-01-01", "content_sha256": "plain", "agentic": "False"},
-        {**base, "uid": "f3", "commit_date": "2026-01-01", "content_sha256": "agentic", "agentic": "True"},
-        {**base, "uid": "f3", "commit_date": "2026-03-01", "content_sha256": "plain", "agentic": "False"},
+        {
+            **base,
+            "uid": "f1",
+            "commit_date": "2026-01-01",
+            "content_sha256": "old",
+            "agentic": "False",
+        },
+        {
+            **base,
+            "uid": "f1",
+            "commit_date": "2026-02-01",
+            "content_sha256": "new",
+            "agentic": "False",
+        },
+        {
+            **base,
+            "uid": "f2",
+            "commit_date": "2026-01-01",
+            "content_sha256": "plain",
+            "agentic": "False",
+        },
+        {
+            **base,
+            "uid": "f3",
+            "commit_date": "2026-01-01",
+            "content_sha256": "agentic",
+            "agentic": "True",
+        },
+        {
+            **base,
+            "uid": "f3",
+            "commit_date": "2026-03-01",
+            "content_sha256": "plain",
+            "agentic": "False",
+        },
     ]
     picks, pool = sample_validation.sample_recall(
         revisions, content, n=10, seed=1, keywords=sample_validation.DEFAULT_KEYWORDS

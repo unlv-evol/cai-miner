@@ -1,0 +1,39 @@
+<p>This record accompanies the dataset and exploratory analysis reported in the paper "GHAgentCI: A Dataset of Coding-Agent Invocations in CI Workflow Histories" (MSR 2027 Data and Tool Showcase Track).</p>
+<p>GHAgentCI holds the complete histories of 15,928 GitHub Actions workflow files that invoke a coding agent (Claude Code, Copilot, Codex, Gemini, Cursor, Aider and others), mined from 6,345 of 196,253 active GitHub repositories, with 205,832 agent invocations located at the job and step that make them. Agentic files are kept with their whole history, including the revisions before the agent was introduced and after it was removed, and every mined repository keeps a row, so adoption and abandonment can both be measured.</p>
+<p>The dataset was created as follows:</p>
+<ol>
+<li>We queried <a href="https://seart-ghs.si.usi.ch/">GitHub SEART</a> on 3 October 2026 for non-fork repositories with at least 300 commits, and kept those whose last commit falls within the preceding year (196,938 repositories). Repositories created at least a year before the query, the remaining sampling criterion of GHAgentFiles, are flagged with <code>ghagentfiles_comparable</code>, so results can be restricted to that population.</li>
+<li>We cloned each repository between 3 and 5 October 2026 as a partial clone without blobs above 64 KB, and applied the tool <code>cai-miner</code> (available on <a href="https://github.com/unlv-evol/cai-miner">GitHub</a> and <a href="https://pypi.org/project/cai-miner/">PyPI</a>, version 0.1.0) with its frozen detector catalogue. It walks the first-parent history of every file under <code>.github/workflows/</code>, parses each revision, and matches each step against the catalogue. Evidence is tiered: a dedicated agent action (<code>uses</code>), an agent CLI call (<code>run</code>), a reserved file name (<code>path</code>) and a GitHub Agentic Workflows header (<code>ghaw</code>) are strong; a reserved job id, an LLM endpoint or a bound credential are weak.</li>
+<li>Repositories that failed in the main pass were retried with a one-hour budget. The 681 that still failed, mostly deleted or made private since the query, keep a row with their failure as status.</li>
+<li>We kept what the paper counts: a revision is agentic with strong evidence for a named agent, and nothing before 30 November 2022 (the release of ChatGPT) counts. Author and committer emails are replaced by a salted SHA-256, so the same address is linked across the dataset without being disclosed; names are kept as git records them.</li>
+<li>Precision and recall were validated on stratified samples labelled independently by two coders; the samples, labels and adjudication are in the replication package.</li>
+</ol>
+<p>The following files are provided:</p>
+<ol>
+<li><code>repositories.csv.gz</code>: one row per repository of the sampling frame, agentic or not, including failed ones, with workflow counts, detected agents and a completeness check (<code>n_blobs_missing</code>).</li>
+<li><code>revisions.csv.gz</code>: one row per change to a workflow file whose history is agentic at some point (git metadata, change type, parse status, triggers, permissions, detected agents).</li>
+<li><code>steps.csv.gz</code>: one row per agent invocation (agent, evidence kind, matched pattern, job and step, action and version, triggers, purpose labels).</li>
+<li><code>ghaw_manifests.csv.gz</code>: one row per revision of a GitHub Agentic Workflows source or compiled file (engine and version, compiler version, tool grants, MCP tools, permitted outputs, secrets, network policy, sandboxing).</li>
+<li><code>content.tar.gz</code>: the content of every distinct workflow revision in the dataset, stored as <code>content/&lt;content_sha256&gt;.yml</code>.</li>
+<li><code>frame-2026-10-03.csv.gz</code>: the sampling frame, with the SEART metadata used for sampling and the <code>ghagentfiles_comparable</code> flag.</li>
+<li><code>replication.tar.gz</code>: the replication package: <code>cai-miner</code> at the version that produced the data, the raw SEART export, the mining run logs, the scripts that build the frame, the release and the paper's numbers and figures, and the validation material. <code>REPLICATION.md</code> inside explains how to regenerate the paper's statistics from the released tables, or re-mine from scratch.</li>
+<li><code>README.md</code>: documentation of every column of every table.</li>
+<li><code>SHA256SUMS</code>: checksums of all files.</li>
+</ol>
+<p>The tables join on <code>repository</code>, on <code>(repository, uid)</code> for a file history, and on <code>(repository, uid, commit_hash)</code> for a revision; <code>content_sha256</code> joins a revision to its content. The main columns are:</p>
+<ol>
+<li><code>repository</code>: the repository (owner and name, separated by "/").</li>
+<li><code>uid</code>: identifier of a logical workflow file, stable across modifications and renames. A file deleted and later recreated at the same path receives a new one.</li>
+<li><code>commit_hash</code>, <code>author_name</code>, <code>author_email</code>, <code>committer_name</code>, <code>committer_email</code>, <code>authored_date</code>, <code>commit_date</code>: git metadata of the revision (emails hashed).</li>
+<li><code>file_path</code>, <code>previous_file_path</code>, <code>file_hash</code>, <code>previous_file_hash</code>: path and git blob id after and before the commit; <code>file_hash</code> is empty for a deletion.</li>
+<li><code>git_change_type</code>: <code>Added</code>, <code>Modified</code>, <code>Deleted</code> or <code>Renamed</code>.</li>
+<li><code>parse_ok</code>: whether the revision is valid YAML; otherwise detection used a text scan.</li>
+<li><code>agent</code>: the agent group (e.g., <code>claude</code>, <code>copilot</code>, <code>codex</code>); for GitHub Agentic Workflows, the declared engine.</li>
+<li><code>evidence_kind</code>: the deciding evidence (<code>ghaw</code>, <code>uses</code>, <code>run</code>, <code>path</code>, <code>job</code>, <code>url</code> or <code>env</code>).</li>
+<li><code>scope</code>, <code>job_id</code>, <code>step_index</code>, <code>step_name</code>: where the invocation is; <code>scope</code> is <code>file</code> when the evidence concerns the whole workflow.</li>
+<li><code>action</code>, <code>action_version</code>: for <code>uses</code> evidence, the action and its reference (tag, branch or commit SHA).</li>
+<li><code>triggers</code>, <code>tasks</code>: the workflow's events, and heuristic purpose labels (review, triage, implement, test, docs, security, scheduled, on_demand).</li>
+<li><code>actor_gated</code>: heuristic flag, whether the workflow conditions on the triggering actor (e.g., <code>github.actor</code>).</li>
+</ol>
+<p>List-valued columns are <code>|</code>-separated. Dates are ISO 8601 with the committer's own UTC offset; compare them as instants, not as strings. The full schema is in <code>README.md</code>. Downloads can be checked against <code>SHA256SUMS</code>.</p>
+<p>The dataset is released under CC BY 4.0; <code>cai-miner</code> and the scripts in the replication package are under the MIT license.</p>

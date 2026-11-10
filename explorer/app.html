@@ -1,0 +1,638 @@
+<title>GHAgentCI Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: a console for one dataset. Fixed header with the dataset's identity
+   and the evidence switch, tabs for the views, a centred 1180px workspace with
+   charts in a two-up grid that stacks on phones; tables scroll in their own box. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --sunk: #eaeef2;
+  --ink: #15191f; --ink-2: #485060; --muted: #6f7787; --line: #d9dfe6;
+  --accent: #0e6a86; --accent-ink: #ffffff; --accent-soft: #dcecf1;
+  --good: #1d7f48; --warn: #a86a12; --bad: #b9431b;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #8a8984;
+  --band: 0.14;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --step--1: 0.8125rem; --step-0: 0.9375rem; --step-1: 1.125rem; --step-2: 1.5rem; --step-3: 2.125rem;
+  --radius: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1116; --surface: #161a21; --sunk: #1d222b;
+  --ink: #e6e9ee; --ink-2: #b2b9c6; --muted: #858d9c; --line: #2b313b;
+  --accent: #56b4d3; --accent-ink: #06222c; --accent-soft: #15323d;
+  --good: #4cc282; --warn: #e0a63e; --bad: #f07a4f;
+  --s1: #4d93e8; --s2: #f07c4c; --s3: #2cc28c; --s4: #f2b52c; --s5: #9a9a95;
+  --band: 0.2; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunk: #1d222b;
+  --ink: #e6e9ee; --ink-2: #b2b9c6; --muted: #858d9c; --line: #2b313b;
+  --accent: #56b4d3; --accent-ink: #06222c; --accent-soft: #15323d;
+  --good: #4cc282; --warn: #e0a63e; --bad: #f07a4f;
+  --s1: #4d93e8; --s2: #f07c4c; --s3: #2cc28c; --s4: #f2b52c; --s5: #9a9a95;
+  --band: 0.2; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 400 var(--step-0)/1.55 var(--font-body); }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.2; }
+h2 { font-size: var(--step-2); }
+h3 { font-size: var(--step-1); }
+p { margin: 0; max-width: 70ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* header */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface);
+  border-bottom: 1px solid var(--line); }
+.top-inner { max-width: 1180px; margin: 0 auto; padding-block: 12px 0; padding-inline: 16px;
+  display: grid; gap: 10px; }
+.brand { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; justify-content: space-between; }
+.brand h1 { font-size: var(--step-2); letter-spacing: -0.01em; }
+.brand h1 span { color: var(--accent); }
+.brand .meta { color: var(--muted); font-size: var(--step--1); min-width: 0; overflow-wrap: anywhere; }
+.switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--sunk); }
+.switch button { border: 0; background: none; border-radius: 999px; padding: 4px 12px; cursor: pointer;
+  font-size: var(--step--1); color: var(--ink-2); }
+.switch button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; min-width: 0; }
+.top-inner > *, main > * { min-width: 0; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; max-width: 100%; }
+nav.tabs a { padding: 8px 12px 10px; color: var(--ink-2); text-decoration: none; white-space: nowrap;
+  border-bottom: 2px solid transparent; font-weight: 500; }
+nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+.switch-wrap { display: flex; align-items: center; gap: 8px; font-size: var(--step--1); color: var(--muted); padding-bottom: 8px; }
+
+main { max-width: 1180px; margin: 0 auto; padding-block: 24px 64px; padding-inline: 16px; display: grid; gap: 28px; }
+section { display: grid; gap: 16px; min-width: 0; }
+.lede { display: grid; gap: 8px; }
+.lede p { color: var(--ink-2); }
+.note { border-left: 3px solid var(--warn); background: var(--sunk); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-2); font-size: var(--step--1); max-width: none; }
+
+/* stat row */
+.stats { display: flex; flex-wrap: wrap; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.stat { flex: 1 1 170px; background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.stat b { font-family: var(--font-display); font-size: var(--step-3); font-weight: 700; line-height: 1.1;
+  letter-spacing: -0.01em; }
+.stat span { color: var(--muted); font-size: var(--step--1); }
+
+/* panels and charts */
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px;
+  display: grid; gap: 10px; min-width: 0; align-content: start; }
+.panel header { display: grid; gap: 4px; }
+.panel header p { color: var(--muted); font-size: var(--step--1); }
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart text { fill: var(--muted); font: 400 11px var(--font-body); }
+.chart .axis { stroke: var(--line); }
+.chart .grid { stroke: var(--line); stroke-dasharray: none; opacity: 0.7; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--step--1); color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.legend i.dot { border-radius: 50%; }
+.legend i.tri { width: 0; height: 0; border-radius: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid; background: none !important; }
+.tip { position: fixed; z-index: 30; pointer-events: none; background: var(--ink); color: var(--bg); padding: 8px 10px;
+  border-radius: var(--radius); font-size: var(--step--1); line-height: 1.4; max-width: 260px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.2); }
+.tip b { font-weight: 600; }
+details.data summary { cursor: pointer; color: var(--muted); font-size: var(--step--1); }
+
+/* html bar lists */
+.bars { display: grid; gap: 6px; }
+.bars .row { display: grid; grid-template-columns: minmax(84px, 9rem) 1fr 7.5rem; gap: 10px; align-items: center; font-size: var(--step--1); }
+.bars .track { height: 12px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.bars .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+.bars .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
+
+/* tables */
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--ink-2); background: var(--sunk); white-space: nowrap; position: sticky; top: 0; }
+th button { all: unset; cursor: pointer; }
+th button:focus-visible { outline: 2px solid var(--accent); }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover { background: var(--accent-soft); }
+
+/* filters */
+.filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.filters label { display: grid; gap: 4px; font-size: var(--step--1); color: var(--muted); }
+.filters input, .filters select { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 7px 10px; min-width: 0; }
+.filters input[type="search"] { width: min(280px, 100%); }
+.check { display: flex !important; grid-auto-flow: column; align-items: center; gap: 6px; padding-bottom: 8px; }
+.pager { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; font-size: var(--step--1); color: var(--muted); }
+.pager button, .btn { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; }
+.pager button:disabled { opacity: 0.4; cursor: default; }
+
+/* chips and pills */
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--sunk); color: var(--ink-2);
+  font-size: 0.75rem; white-space: nowrap; border: 1px solid var(--line); }
+.chip.agent { background: var(--accent-soft); border-color: transparent; color: var(--ink); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.active { color: var(--good); } .pill.removed { color: var(--warn); } .pill.deleted { color: var(--bad); }
+.kind { font-family: var(--font-mono); font-size: 0.75rem; padding: 1px 6px; border-radius: 4px; background: var(--sunk); white-space: nowrap; }
+.kind.strong { color: var(--good); } .kind.weak { color: var(--muted); } .kind.unsure { color: var(--warn); }
+
+/* repository detail */
+.crumbs { font-size: var(--step--1); }
+.repo-head { display: grid; gap: 10px; }
+.repo-head h2 { font-family: var(--font-mono); font-weight: 500; font-size: var(--step-2); word-break: break-word; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 20px; color: var(--ink-2); font-size: var(--step--1); }
+.facts b { color: var(--ink); font-weight: 600; }
+.file { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: grid; min-width: 0; }
+.file > .fh { padding: 14px 16px; display: grid; gap: 8px; border-bottom: 1px solid var(--line); }
+.file .path { font-family: var(--font-mono); font-size: var(--step-0); word-break: break-all; }
+.file .body { padding: 12px 16px 16px; display: grid; gap: 12px; min-width: 0; }
+.file .tablebox { border-radius: 4px; }
+.sub { font-size: var(--step--1); color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.timeline { width: 100%; height: 46px; display: block; }
+.timeline text { fill: var(--muted); font: 400 10px var(--font-body); }
+.empty { padding: 28px; text-align: center; color: var(--muted); }
+.loading { color: var(--muted); padding: 40px 0; }
+footer.site { max-width: 1180px; margin: 0 auto; padding-block: 0 40px; padding-inline: 16px; color: var(--muted); font-size: var(--step--1); }
+
+@media (max-width: 560px) {
+  .bars .row { grid-template-columns: 6.5rem 1fr 6rem; }
+  .stat b { font-size: var(--step-2); }
+}
+@media (prefers-reduced-motion: no-preference) { .fill { transition: width 0.3s ease; } }
+</style>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <h1>GHAgentCI <span>Explorer</span></h1>
+      <div class="meta" id="meta">Coding agents invoked from GitHub Actions</div>
+    </div>
+    <div class="bar">
+      <nav class="tabs" aria-label="Views">
+        <a href="#overview" data-tab="overview">Overview</a>
+        <a href="#repos" data-tab="repos">Repositories</a>
+        <a href="#security" data-tab="security">Triggers &amp; safeguards</a>
+        <a href="#actions" data-tab="actions">Actions</a>
+      </nav>
+      <div class="switch-wrap">
+        <span id="switch-label">Evidence</span>
+        <div class="switch" role="group" aria-labelledby="switch-label">
+          <button type="button" id="view-all" aria-pressed="true">All strong evidence</button>
+          <button type="button" id="view-explicit" aria-pressed="false">Explicit calls only</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main"><p class="loading">Loading the dataset…</p></main>
+<footer class="site" id="foot"></footer>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+"use strict";
+(() => {
+const $ = (sel, root = document) => root.querySelector(sel);
+const main = $("#main");
+const tip = $("#tip");
+const state = { view: "all", tab: "overview", repo: null, summary: null, repos: null, shards: {},
+  filters: { q: "", agent: "", lang: "", status: "", ghaw: false, sort: "stars", dir: -1, page: 0 } };
+const SERIES = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+const KIND_INFO = {
+  uses: ["strong", "a step uses a dedicated agent action"],
+  run: ["strong", "a shell step calls or names an agent CLI"],
+  path: ["strong", "the file has the reserved Copilot setup name"],
+  ghaw: ["strong", "a GitHub Agentic Workflows artifact names its engine"],
+  job: ["weak", "a job has a reserved agent identifier"],
+  url: ["weak", "a step contacts an LLM endpoint"],
+  env: ["weak", "an agent credential is bound"],
+};
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = n => Number(n).toLocaleString("en-US");
+const pct = (a, b) => b ? (100 * a / b).toFixed(1) : "0.0";
+const nice = max => { if (max <= 0) return 1; const p = 10 ** Math.floor(Math.log10(max)); const m = max / p;
+  return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; };
+const monthLabel = m => { const [y, mo] = m.split("-"); return new Date(+y, +mo - 1, 1).toLocaleString("en-US", { month: "short" }) + (mo === "01" ? " " + y : ""); };
+const ghLink = (repo, path, sha) => `https://github.com/${repo}/blob/${sha}/${path.split("/").map(encodeURIComponent).join("/")}`;
+const v = () => state.summary.views[state.view];
+function load(key, fallback) { try { const x = localStorage.getItem("ghagentci:" + key); return x === null ? fallback : JSON.parse(x); } catch { return fallback; } }
+function save(key, value) { try { localStorage.setItem("ghagentci:" + key, JSON.stringify(value)); } catch { /* storage unavailable */ } }
+
+function showTip(evt, html) {
+  tip.innerHTML = html; tip.hidden = false;
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  if (x + w > innerWidth - 8) x = evt.clientX - w - pad;
+  if (y + h > innerHeight - 8) y = evt.clientY - h - pad;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+
+function svgEl(w, h, label) {
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(label)}">`;
+}
+function legend(items, shape = "") {
+  return `<div class="legend">${items.map((it, i) => `<span><i class="${shape}" style="background:${it.color || SERIES[i]};color:${it.color || SERIES[i]}"></i>${esc(it.name)}</span>`).join("")}</div>`;
+}
+function dataTable(head, rows) {
+  return `<details class="data"><summary>Show the numbers</summary><div class="tablebox"><table><thead><tr>${head.map((h, i) => `<th class="${i ? "r" : ""}">${esc(h)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${i ? "r" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
+}
+
+/* ---------- charts ---------- */
+// Monthly lines with a crosshair; values per series per month.
+function lineChart(id, months, series, yLabel) {
+  const W = 560, H = 250, L = 46, R = 12, T = 12, B = 30;
+  const max = nice(Math.max(1, ...series.flatMap(s => s.values)));
+  const x = i => L + (W - L - R) * (months.length > 1 ? i / (months.length - 1) : 0.5);
+  const y = val => T + (H - T - B) * (1 - val / max);
+  let s = svgEl(W, H, yLabel);
+  for (let k = 0; k <= 4; k++) { const val = max * k / 4, yy = y(val);
+    s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}"/><text x="${L - 6}" y="${yy + 4}" text-anchor="end">${fmt(Math.round(val))}</text>`; }
+  const step = Math.ceil(months.length / 7);
+  months.forEach((m, i) => { if (i % step === 0 || i === months.length - 1) s += `<text x="${x(i)}" y="${H - 10}" text-anchor="middle">${monthLabel(m)}</text>`; });
+  series.forEach((ser, k) => {
+    const d = ser.values.map((val, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(val).toFixed(1)}`).join("");
+    s += `<path d="${d}" fill="none" stroke="${SERIES[k]}" stroke-width="2" stroke-linejoin="round"/>`;
+    const last = ser.values.length - 1;
+    s += `<circle cx="${x(last)}" cy="${y(ser.values[last])}" r="3.5" fill="${SERIES[k]}"/>`;
+  });
+  s += `<line id="${id}-cross" class="axis" x1="0" x2="0" y1="${T}" y2="${H - B}" stroke-width="1" visibility="hidden"/>`;
+  s += `<rect id="${id}-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg>`;
+  return { html: s, bind() {
+    const hit = document.getElementById(id + "-hit"), cross = document.getElementById(id + "-cross"), svg = hit.ownerSVGElement;
+    hit.addEventListener("pointermove", e => {
+      const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+      const i = Math.max(0, Math.min(months.length - 1, Math.round((p.x - L) / (W - L - R) * (months.length - 1))));
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      showTip(e, `<b>${monthLabel(months[i])} ${months[i].slice(0, 4)}</b><br>` + series.map((ser, k) => `<span style="color:${SERIES[k]}">■</span> ${esc(ser.name)}: ${fmt(ser.values[i])}`).join("<br>"));
+    });
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  } };
+}
+
+// 100% stacked bars per quarter, with the count of new workflows on top.
+function stackedBars(id, rows, keys, names) {
+  const W = 560, H = 250, L = 40, R = 8, T = 22, B = 30;
+  const band = (W - L - R) / rows.length, bw = Math.min(64, band * 0.62);
+  const y = p => T + (H - T - B) * (1 - p / 100);
+  let s = svgEl(W, H, "Share of new agentic workflows by wiring, per quarter");
+  [0, 25, 50, 75, 100].forEach(p => { s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L - 6}" y="${y(p) + 4}" text-anchor="end">${p}%</text>`; });
+  rows.forEach((r, i) => {
+    const total = keys.reduce((a, k) => a + r[k], 0) || 1, cx = L + band * i + band / 2;
+    let acc = 0;
+    keys.forEach((k, j) => { const h = 100 * r[k] / total; if (h <= 0) return;
+      const y0 = y(acc + h), hh = y(acc) - y(acc + h);
+      s += `<rect data-i="${i}" x="${cx - bw / 2}" y="${y0}" width="${bw}" height="${Math.max(0, hh - 1.5)}" fill="${SERIES[j]}" rx="2"/>`;
+      acc += h; });
+    s += `<text x="${cx}" y="${T - 8}" text-anchor="middle" class="num">${fmt(total)}</text><text x="${cx}" y="${H - 10}" text-anchor="middle">${esc(r.quarter)}</text>`;
+    s += `<rect id="${id}-hit-${i}" data-i="${i}" x="${cx - band / 2}" y="${T}" width="${band}" height="${H - T - B}" fill="transparent"/>`;
+  });
+  s += "</svg>";
+  return { html: s, bind() { rows.forEach((r, i) => { const el = document.getElementById(`${id}-hit-${i}`);
+    const total = keys.reduce((a, k) => a + r[k], 0);
+    el.addEventListener("pointermove", e => showTip(e, `<b>${esc(r.quarter)}</b> · ${fmt(total)} new<br>` +
+      keys.map((k, j) => `<span style="color:${SERIES[j]}">■</span> ${esc(names[j])}: ${fmt(r[k])} (${pct(r[k], total)}%)`).reverse().join("<br>")));
+    el.addEventListener("pointerleave", hideTip); }); } };
+}
+
+// Kaplan-Meier step curves with confidence bands.
+function survivalChart(id, curves) {
+  const W = 560, H = 250, L = 40, R = 12, T = 10, B = 34;
+  const xmax = Math.max(...curves.map(c => c.points[c.points.length - 1][0]), 1);
+  const x = m => L + (W - L - R) * m / xmax, y = p => T + (H - T - B) * (1 - p / 100);
+  let s = svgEl(W, H, "Share of repositories still invoking an agent, by months since adoption");
+  [0, 25, 50, 75, 100].forEach(p => { s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(p)}" y2="${y(p)}"/><text x="${L - 6}" y="${y(p) + 4}" text-anchor="end">${p}%</text>`; });
+  for (let m = 0; m <= xmax; m += 3) s += `<line class="grid" x1="${x(m)}" x2="${x(m)}" y1="${T}" y2="${H - B}"/><text x="${x(m)}" y="${H - 18}" text-anchor="middle">${m}</text>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 2}" text-anchor="middle">months since the repository first ran an agent in CI</text>`;
+  // Vertices of a right-continuous step function through the points' column idx.
+  const stepPts = (pts, idx) => pts.flatMap((p, i) => i ? [[p[0], pts[i - 1][idx]], [p[0], p[idx]]] : [[p[0], p[idx]]]);
+  const toPath = vs => vs.map((q, i) => `${i ? "L" : "M"}${x(q[0]).toFixed(1)},${y(q[1]).toFixed(1)}`).join("");
+  curves.forEach((c, k) => {
+    const band = [...stepPts(c.points, 3), ...stepPts(c.points, 2).reverse()];
+    s += `<path d="${toPath(band)}Z" fill="${SERIES[k]}" style="opacity:var(--band)"/>`;
+    s += `<path d="${toPath(stepPts(c.points, 1))}" fill="none" stroke="${SERIES[k]}" stroke-width="2"/>`;
+  });
+  s += `<line id="${id}-cross" class="axis" y1="${T}" y2="${H - B}" visibility="hidden"/><rect id="${id}-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent"/></svg>`;
+  return { html: s, bind() {
+    const hit = document.getElementById(id + "-hit"), cross = document.getElementById(id + "-cross"), svg = hit.ownerSVGElement;
+    hit.addEventListener("pointermove", e => {
+      const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const m = Math.max(0, (pt.matrixTransform(svg.getScreenCTM().inverse()).x - L) / (W - L - R) * xmax);
+      cross.setAttribute("x1", x(m)); cross.setAttribute("x2", x(m)); cross.setAttribute("visibility", "visible");
+      const rows = curves.map((c, k) => { const p = c.points.filter(q => q[0] <= m).pop();
+        const mark = `<span style="color:${SERIES[k]}">■</span> ${esc(c.name)}`;
+        return m > c.points[c.points.length - 1][0] + 0.01 ? `${mark}: too few repositories left to estimate`
+          : `${mark}: ${p[1]}% still agentic (95% CI ${p[2]}–${p[3]})`; });
+      showTip(e, `<b>${m.toFixed(1)} months after adoption</b><br>${rows.join("<br>")}`);
+    });
+    hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); hideTip(); });
+  } };
+}
+
+// Dot plot: one row per trigger, three constraints on one percentage axis.
+function dotPlot(id, rows) {
+  const keys = [["permissions", "token permissions declared"], ["gated", "triggering actor restricted"], ["pinned", "action pinned to a commit SHA"]];
+  const W = 980, rowH = 30, L = 190, R = 20, T = 8, H = T + rowH * rows.length + 30;
+  const x = p => L + (W - L - R) * p / 100;
+  let s = svgEl(W, H, "Safeguards per trigger event");
+  [0, 25, 50, 75, 100].forEach(p => { s += `<line class="grid" x1="${x(p)}" x2="${x(p)}" y1="${T}" y2="${H - 26}"/><text x="${x(p)}" y="${H - 10}" text-anchor="middle">${p}%</text>`; });
+  rows.forEach((r, i) => {
+    const cy = T + rowH * i + rowH / 2, vals = keys.map(([k]) => r[k]).filter(q => q !== null);
+    s += `<text x="${L - 10}" y="${cy + 4}" text-anchor="end" style="fill:var(--ink-2)">${esc(r.trigger)} (${fmt(r.n)})</text>`;
+    s += `<line x1="${x(Math.min(...vals))}" x2="${x(Math.max(...vals))}" y1="${cy}" y2="${cy}" stroke="var(--line)" stroke-width="3" stroke-linecap="round"/>`;
+    keys.forEach(([k], j) => { if (r[k] === null) return; const cx = x(r[k]);
+      const shape = j === 0 ? `<circle cx="${cx}" cy="${cy}" r="6"` : j === 1 ? `<rect x="${cx - 5.5}" y="${cy - 5.5}" width="11" height="11" rx="1"` : `<path d="M${cx},${cy - 7}L${cx + 7},${cy + 5}L${cx - 7},${cy + 5}Z"`;
+      s += `${shape} fill="${SERIES[j]}" stroke="var(--surface)" stroke-width="1.5"/>`; });
+    s += `<rect id="${id}-hit-${i}" x="0" y="${cy - rowH / 2}" width="${W}" height="${rowH}" fill="transparent"/>`;
+  });
+  s += "</svg>";
+  return { html: s, keys, bind() { rows.forEach((r, i) => { const el = document.getElementById(`${id}-hit-${i}`);
+    el.addEventListener("pointermove", e => showTip(e, `<b>${esc(r.trigger)}</b> · ${fmt(r.n)} workflows<br>` +
+      keys.map(([k, name], j) => `<span style="color:${SERIES[j]}">■</span> ${esc(name)}: ${r[k] === null ? "no actions" : r[k] + "%"}`).join("<br>")));
+    el.addEventListener("pointerleave", hideTip); }); } };
+}
+
+// HTML bars: adoption rate per group, with counts.
+function rateBars(items, label) {
+  const max = Math.max(...items.map(i => i.rate), 0.1);
+  return `<div class="bars" role="list" aria-label="${esc(label)}">${items.map(i => `<div class="row" role="listitem">
+    <span>${esc(i.key)}</span><div class="track"><div class="fill" style="width:${(100 * i.rate / max).toFixed(1)}%"></div></div>
+    <span class="val">${i.rate}% <span class="muted">of ${fmt(i.mined)}</span></span></div>`).join("")}</div>`;
+}
+
+/* ---------- views ---------- */
+function renderOverview() {
+  const s = state.summary, x = v(), t = x.totals, sv = x.survival;
+  const lines = lineChart("adopt", x.adoption.months, x.adoption.series, "Repositories invoking each agent at the end of each month");
+  const keys = ["uses", "run", "path", "ghaw"], names = ["dedicated action", "CLI in a shell step", "reserved Copilot file", "gh-aw"];
+  const stack = stackedBars("wire", x.wiring, keys, names);
+  const surv = survivalChart("surv", sv.curves);
+  const r = x.rates;
+  main.innerHTML = `
+  <section class="lede">
+    <h2>Which projects let coding agents act from CI, and how?</h2>
+    <p>GHAgentCI follows every GitHub Actions workflow that starts a coding agent such as Claude, Copilot, Codex or Gemini, across ${fmt(s.mined)} active repositories with 300 or more commits. Each workflow comes with its full history, so you can see when agents arrived, how they are wired in and constrained, and when projects removed them.</p>
+  </section>
+  ${state.view === "explicit" ? `<p class="note">Explicit calls only: shell steps count as invocations only when they call an agent with a prompt (${s.explicit_patterns.map(p => `<code>${esc(p)}</code>`).join(", ")}). Matches on a package name or an install command are left out, since manual validation found most of them do not run an agent.</p>` : ""}
+  <div class="stats">
+    <div class="stat"><b>${fmt(t.agentic_repos)}</b><span>repositories ran an agent from CI (${pct(t.agentic_repos, s.mined)}% of mined)</span></div>
+    <div class="stat"><b>${fmt(t.still_agentic)}</b><span>still do at their last commit (${pct(t.still_agentic, t.agentic_repos)}%)</span></div>
+    <div class="stat"><b>${fmt(t.histories)}</b><span>agentic workflow files, with full history</span></div>
+    <div class="stat"><b>${fmt(t.invocations)}</b><span>agent invocations located at their step</span></div>
+    <div class="stat"><b>${sv.after["365"]}%</b><span>of repositories drop agents within a year</span></div>
+  </div>
+  <div class="grid2">
+    <article class="panel"><header><h3>Repositories running each agent</h3><p>At the end of each month; a repository leaves a line when it removes that agent.</p></header>
+      ${legend(x.adoption.series)}${lines.html}
+      ${dataTable(["month", ...x.adoption.series.map(q => q.name), "new adopters"], x.adoption.months.map((m, i) => [m, ...x.adoption.series.map(q => fmt(q.values[i])), fmt(x.adoption.new[i])]))}</article>
+    <article class="panel"><header><h3>How new agentic workflows wire the agent in</h3><p>Share per quarter; the number above each bar counts new agentic workflows. Quarters still running when data was collected are left out.</p></header>
+      ${legend(names.map((n, i) => ({ name: n, color: SERIES[i] })))}${stack.html}
+      ${dataTable(["quarter", ...names], x.wiring.map(q => [q.quarter, ...keys.map(k => fmt(q[k]))]))}</article>
+    <article class="panel"><header><h3>How long repositories keep agents in CI</h3><p>Kaplan–Meier estimate with 95% bands, by the agent adopted first. A curve stops when fewer than 50 repositories remain under observation. Steep steps are organisation-wide rollbacks.</p></header>
+      ${legend(sv.curves.map(c => ({ name: `${c.name} (${fmt(c.n)})` })))}${surv.html}
+      ${dataTable(["after", "share that stopped"], Object.entries(sv.after).map(([d, p]) => [`${d} days`, `${p}%`]))}</article>
+    <article class="panel"><header><h3>Who adopts</h3><p>Share of mined repositories that ever ran an agent from CI.</p></header>
+      <div class="sub">By stars</div>${rateBars(r.stars, "Adoption by stars")}
+      <div class="sub">By creation year, since 2015</div>${rateBars(r.years.filter(y => +y.key >= 2015), "Adoption by creation year")}</article>
+  </div>
+  <article class="panel"><header><h3>By main language</h3><p>Languages with at least 1,000 mined repositories, highest adoption first.</p></header>${rateBars([...r.languages].sort((p, q) => q.rate - p.rate || q.mined - p.mined), "Adoption by language")}</article>`;
+  lines.bind(); stack.bind(); surv.bind();
+}
+
+function renderSecurity() {
+  const x = v(), dp = dotPlot("dots", x.triggers);
+  const byLabel = Object.fromEntries(x.triggers.map(t => [t.trigger, t]));
+  const ic = byLabel["issue or comment"], prt = byLabel["pull_request_target"];
+  const prof = x.profiles;
+  main.innerHTML = `
+  <section class="lede"><h2>When agents run, and what holds them back</h2>
+  <p>An agent started from CI acts on events it does not choose, with the workflow's token and secrets. These views cross the events that start agentic workflows with three safeguards, as they stand at each repository's last commit.</p></section>
+  <div class="stats">
+    ${ic ? `<div class="stat"><b>${ic.gated}%</b><span>of issue- and comment-triggered agents restrict who can start them</span></div>
+    <div class="stat"><b>${ic.permissions}%</b><span>of those declare their token's permissions</span></div>` : ""}
+    ${prt ? `<div class="stat"><b>${fmt(prt.n)}</b><span>run an agent on <code>pull_request_target</code>, where fork pull requests reach secrets</span></div>
+    <div class="stat"><b>${(100 - prt.gated).toFixed(1)}%</b><span>of those do not restrict the triggering actor</span></div>` : ""}
+  </div>
+  <article class="panel"><header><h3>Safeguards per trigger event</h3><p>A workflow counts once for each event that starts it; the number is how many workflows each event starts.</p></header>
+    ${legend(dp.keys.map(([, n], i) => ({ name: n, color: SERIES[i] })), "dot")}${dp.html}
+    ${dataTable(["event", "workflows", ...dp.keys.map(k => k[1])], x.triggers.map(t => [t.trigger, fmt(t.n), t.permissions + "%", t.gated + "%", t.pinned === null ? "–" : t.pinned + "%"]))}</article>
+  <article class="panel"><header><h3>Per agent</h3><p>Agentic workflows at each repository's last commit. “Unnamed” are gh-aw workflows whose header names no engine.</p></header>
+    <div class="tablebox"><table><thead><tr><th>agent</th><th class="r">repos</th><th class="r">workflows</th><th>main wiring</th><th class="r">pull requests</th><th class="r">issues</th><th class="r">permissions</th><th class="r">actor restricted</th><th class="r">SHA-pinned</th></tr></thead>
+    <tbody>${prof.map(p => `<tr><td>${esc(p.label)}</td><td class="r">${esc(p.repos.replace(/\{,\}/g, ","))}</td><td class="r">${esc(p.workflows.replace(/\{,\}/g, ","))}</td><td>${esc(p.wiring)} (${esc(p.wiring_pct)}%)</td><td class="r">${p.pr}%</td><td class="r">${p.issues}%</td><td class="r">${p.permissions}%</td><td class="r">${p.gated}%</td><td class="r">${p.pinned === "--" ? "–" : p.pinned + "%"}</td></tr>`).join("")}</tbody></table></div></article>`;
+  dp.bind();
+}
+
+function renderActions() {
+  const a = state.summary.actions, max = Math.max(...a.map(r => r.repos));
+  main.innerHTML = `
+  <section class="lede"><h2>The agent actions projects use</h2>
+  <p>Dedicated GitHub Actions invoked by agentic workflows at each repository's last commit. Pinning an action to a full commit SHA protects a workflow from a tag being moved to new code; a version tag or branch does not.</p></section>
+  <div class="tablebox"><table><thead><tr><th>action</th><th>agent</th><th class="r">repositories</th><th></th><th class="r">workflows</th><th class="r">SHA-pinned</th></tr></thead>
+  <tbody>${a.map(r => `<tr><td><a class="mono" href="https://github.com/${esc(r.action)}" target="_blank" rel="noopener">${esc(r.action)}</a></td><td>${esc(r.agent)}</td><td class="r">${fmt(r.repos)}</td>
+    <td style="min-width:120px"><div class="bars"><div class="track"><div class="fill" style="width:${(100 * r.repos / max).toFixed(1)}%"></div></div></div></td>
+    <td class="r">${fmt(r.workflows)}</td><td class="r">${r.pinned}%</td></tr>`).join("")}</tbody></table></div>`;
+}
+
+/* ---------- repositories ---------- */
+async function ensureRepos() {
+  if (!state.repos) state.repos = await (await fetch("data/repos.json")).json();
+  return state.repos;
+}
+function filtered() {
+  const f = state.filters, q = f.q.trim().toLowerCase();
+  let rows = state.repos.filter(r => (state.view === "all" || r.explicit)
+    && (!q || r.repo.toLowerCase().includes(q))
+    && (!f.agent || r.agents.includes(f.agent))
+    && (!f.lang || r.lang === f.lang)
+    && (!f.status || (f.status === "active" ? r.now.length > 0 : r.now.length === 0))
+    && (!f.ghaw || r.ghaw));
+  const key = f.sort, dir = f.dir;
+  rows.sort((a, b) => { const x = a[key], y = b[key];
+    const c = typeof x === "number" ? x - y : String(x).localeCompare(String(y));
+    return c * dir || a.repo.localeCompare(b.repo); });
+  return rows;
+}
+async function renderRepos() {
+  main.innerHTML = `<p class="loading">Loading repositories…</p>`;
+  await ensureRepos();
+  const f = state.filters, all = state.repos;
+  const agents = [...new Set(all.flatMap(r => r.agents))].sort();
+  const langs = Object.entries(all.reduce((m, r) => (r.lang && (m[r.lang] = (m[r.lang] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]).slice(0, 30).map(e => e[0]);
+  main.innerHTML = `
+  <section class="lede"><h2>Agentic repositories</h2><p>Every repository that ran a coding agent from CI at some point. Select one to see its workflows, their history and each invocation.</p></section>
+  <form class="filters" id="filters" role="search">
+    <label for="f-q">Repository<input type="search" id="f-q" placeholder="owner or name" value="${esc(f.q)}"></label>
+    <label for="f-agent">Agent<select id="f-agent"><option value="">Any</option>${agents.map(a => `<option ${a === f.agent ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></label>
+    <label for="f-lang">Language<select id="f-lang"><option value="">Any</option>${langs.map(a => `<option ${a === f.lang ? "selected" : ""}>${esc(a)}</option>`).join("")}</select></label>
+    <label for="f-status">Status<select id="f-status"><option value="">Any</option><option value="active" ${f.status === "active" ? "selected" : ""}>Still runs an agent</option><option value="gone" ${f.status === "gone" ? "selected" : ""}>Removed agents</option></select></label>
+    <label class="check" for="f-ghaw"><input type="checkbox" id="f-ghaw" ${f.ghaw ? "checked" : ""}> Uses gh-aw</label>
+  </form>
+  <div id="repo-table"></div>`;
+  const on = (id, ev, fn) => $("#" + id).addEventListener(ev, fn);
+  const upd = patch => { Object.assign(f, patch, { page: 0 }); save("filters", f); drawTable(); };
+  on("filters", "submit", e => e.preventDefault());
+  on("f-q", "input", e => upd({ q: e.target.value }));
+  on("f-agent", "change", e => upd({ agent: e.target.value }));
+  on("f-lang", "change", e => upd({ lang: e.target.value }));
+  on("f-status", "change", e => upd({ status: e.target.value }));
+  on("f-ghaw", "change", e => upd({ ghaw: e.target.checked }));
+  drawTable();
+}
+function drawTable() {
+  const f = state.filters, rows = filtered(), per = 50, pages = Math.max(1, Math.ceil(rows.length / per));
+  f.page = Math.min(f.page, pages - 1);
+  const slice = rows.slice(f.page * per, f.page * per + per);
+  const cols = [["repo", "repository"], ["lang", "language"], ["stars", "stars", "r"], ["agents", "agents"], ["first", "first agent"], ["files", "agentic files", "r"], ["now", "status"]];
+  const head = cols.map(([k, n, c]) => `<th class="${c || ""}"><button type="button" data-sort="${k}" aria-label="Sort by ${n}">${n}${f.sort === k ? (f.dir > 0 ? " ↑" : " ↓") : ""}</button></th>`).join("");
+  const box = $("#repo-table");
+  box.innerHTML = rows.length ? `
+    <div class="tablebox"><table><thead><tr>${head}</tr></thead><tbody>${slice.map(r => `<tr class="click" data-repo="${esc(r.repo)}" tabindex="0">
+      <td><span class="mono">${esc(r.repo)}</span>${r.ghaw ? ` <span class="chip">gh-aw</span>` : ""}${state.view === "all" && !r.explicit ? ` <span class="chip" title="Agentic only through name or install matches">name/install only</span>` : ""}</td>
+      <td>${esc(r.lang)}</td><td class="r">${fmt(r.stars)}</td>
+      <td><div class="chips">${r.agents.map(a => `<span class="chip agent">${esc(a)}</span>`).join("")}</div></td>
+      <td class="num">${esc(r.first)}</td><td class="r">${r.files}</td>
+      <td>${r.now.length ? `<span class="pill active">running</span>` : `<span class="pill removed">removed</span>`}</td></tr>`).join("")}</tbody></table></div>
+    <div class="pager"><span class="num">${fmt(rows.length)} repositories · page ${f.page + 1} of ${pages}</span>
+      <span><button type="button" id="prev" ${f.page ? "" : "disabled"}>Previous</button> <button type="button" id="next" ${f.page < pages - 1 ? "" : "disabled"}>Next</button></span></div>`
+    : `<div class="empty">No repository matches these filters. Clear the search or pick “Any” to widen it.</div>`;
+  box.querySelectorAll("th button").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.sort; if (f.sort === k) f.dir = -f.dir; else { f.sort = k; f.dir = ["stars", "files", "first"].includes(k) ? -1 : 1; }
+    f.page = 0; save("filters", f); drawTable(); }));
+  box.querySelectorAll("tr.click").forEach(tr => { const go = () => openRepo(tr.dataset.repo);
+    tr.addEventListener("click", go); tr.addEventListener("keydown", e => { if (e.key === "Enter") go(); }); });
+  const prev = $("#prev"), next = $("#next");
+  if (prev) prev.addEventListener("click", () => { f.page--; drawTable(); });
+  if (next) next.addEventListener("click", () => { f.page++; drawTable(); });
+}
+
+/* ---------- repository detail ---------- */
+function openRepo(repo) { location.hash = "repo~" + repo.replace("/", "~"); }
+function timeline(revs, t0, t1) {
+  const W = 600, H = 46, L = 6, R = 6, span = Math.max(1, t1 - t0);
+  const x = d => L + (W - L - R) * (Date.parse(d) - t0) / span;
+  let s = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="Revision timeline">`;
+  s += `<line x1="${L}" x2="${W - R}" y1="20" y2="20" stroke="var(--line)" stroke-width="2"/>`;
+  let agentic = null, startX = null;
+  revs.forEach(([d, , , agents]) => { const on = agents.length > 0, xx = x(d);
+    if (on && agentic !== true) startX = xx;
+    if (!on && agentic === true) s += `<line x1="${startX}" x2="${xx}" y1="20" y2="20" stroke="var(--good)" stroke-width="4"/>`;
+    agentic = on; });
+  if (agentic) s += `<line x1="${startX}" x2="${W - R}" y1="20" y2="20" stroke="var(--good)" stroke-width="4"/>`;
+  revs.forEach(([d, c, , agents]) => { const xx = x(d);
+    s += c === "D" ? `<path d="M${xx - 4},16L${xx + 4},24M${xx + 4},16L${xx - 4},24" stroke="var(--bad)" stroke-width="2"/>`
+      : `<circle cx="${xx}" cy="20" r="${c === "A" ? 4.5 : 2.5}" fill="${agents.length ? "var(--good)" : "var(--muted)"}" stroke="var(--surface)" stroke-width="1"/>`; });
+  const yr = d => new Date(d).toISOString().slice(0, 7);
+  s += `<text x="${L}" y="42">${yr(t0)}</text><text x="${W - R}" y="42" text-anchor="end">${yr(t1)}</text></svg>`;
+  return s;
+}
+async function renderRepo(repo) {
+  main.innerHTML = `<p class="loading">Loading ${esc(repo)}…</p>`;
+  await ensureRepos();
+  const row = state.repos.find(r => r.repo === repo);
+  if (!row) { main.innerHTML = `<div class="empty">${esc(repo)} is not an agentic repository in GHAgentCI. <a href="#repos">Browse repositories</a>.</div>`; return; }
+  if (!state.shards[row.shard]) state.shards[row.shard] = await (await fetch(`data/shards/${String(row.shard).padStart(2, "0")}.json`)).json();
+  const files = state.shards[row.shard][repo] || [];
+  const dates = files.flatMap(fl => fl.revs.map(r => Date.parse(r[0])));
+  const t0 = Math.min(...dates), t1 = Math.max(...dates, Date.parse(state.summary.collected[0]));
+  const order = { active: 0, "agent removed": 1, deleted: 2 };
+  files.sort((a, b) => order[a.status] - order[b.status] || a.path.localeCompare(b.path));
+  main.innerHTML = `
+  <nav class="crumbs"><a href="#repos">← All repositories</a></nav>
+  <section class="repo-head">
+    <h2>${esc(repo)}</h2>
+    <div class="facts">
+      ${row.lang ? `<span><b>${esc(row.lang)}</b></span>` : ""}<span><b class="num">${fmt(row.stars)}</b> stars</span><span><b class="num">${fmt(row.commits)}</b> commits</span>
+      <span>created <b>${esc(row.created)}</b></span><span>first agent <b>${esc(row.first)}</b></span><span>last agentic change <b>${esc(row.last)}</b></span>
+      <span><a href="https://github.com/${esc(repo)}" target="_blank" rel="noopener">Open on GitHub ↗</a></span>
+    </div>
+    <div class="chips">${row.agents.map(a => `<span class="chip agent">${esc(a)}</span>`).join("")}${row.now.length ? `<span class="pill active">still runs an agent</span>` : `<span class="pill removed">no agent at last commit</span>`}</div>
+    ${!row.explicit ? `<p class="note">This repository is agentic only through shell steps that name or install an agent. Validation found most such matches do not run an agent, so check the steps below before relying on it.</p>` : ""}
+  </section>
+  ${files.map((fl, i) => `
+  <article class="file">
+    <div class="fh">
+      <div class="path"><a href="${ghLink(repo, fl.path, fl.ref)}" target="_blank" rel="noopener">${esc(fl.path)}</a></div>
+      <div class="facts">
+        <span class="pill ${fl.status === "active" ? "active" : fl.status === "deleted" ? "deleted" : "removed"}">${fl.status === "active" ? "runs an agent" : fl.status === "deleted" ? "file deleted" : "agent removed"}</span>
+        ${fl.name ? `<span>“${esc(fl.name)}”</span>` : ""}
+        <span><b>${fl.revs.length}</b> revisions</span>
+        <span>permissions: <b>${fl.permissions ? "declared" : "default"}</b></span>
+        <span>actor restricted: <b>${fl.gated ? "yes" : "no"}</b></span>
+      </div>
+      ${fl.triggers.length ? `<div class="chips">${fl.triggers.map(t => `<span class="chip mono">${esc(t)}</span>`).join("")}</div>` : ""}
+      ${fl.paths.length > 1 ? `<div class="muted" style="font-size:var(--step--1)">Also named: ${fl.paths.filter(p => p !== fl.path).map(p => `<code>${esc(p)}</code>`).join(", ")}</div>` : ""}
+    </div>
+    <div class="body">
+      <div><div class="sub">History</div>${timeline(fl.revs, t0, t1)}</div>
+      <div><div class="sub">Invocations in the ${fl.status === "active" ? "current" : "last agentic"} revision</div>
+      <div class="tablebox"><table><thead><tr><th>where</th><th>agent</th><th>evidence</th><th>matched</th><th>action</th></tr></thead><tbody>
+        ${fl.invocations.length ? fl.invocations.map(iv => { const info = KIND_INFO[iv.kind] || ["", ""];
+          const cls = info[0] === "weak" ? "weak" : iv.kind === "run" && !iv.explicit ? "unsure" : "strong";
+          const pinned = /^[0-9a-f]{40}$/.test(iv.version);
+          return `<tr><td>${iv.scope === "file" ? "whole file" : `<span class="mono">${esc(iv.job)}</span> · step ${esc(iv.step)}${iv.name ? `<br><span class="muted">${esc(iv.name)}</span>` : ""}`}</td>
+          <td>${esc(iv.agent)}</td><td><span class="kind ${cls}" title="${esc(info[1])}">${esc(iv.kind)}</span>${cls === "unsure" ? `<br><span class="muted">name or install match</span>` : ""}</td>
+          <td><code>${esc(iv.pattern)}</code></td><td>${iv.action ? `<code>${esc(iv.action)}</code>${iv.version ? `<br><span class="muted">${pinned ? "pinned to SHA" : "@" + esc(iv.version)}</span>` : ""}` : "–"}</td></tr>`; }).join("")
+          : `<tr><td colspan="5" class="muted">No invocation recorded for this revision.</td></tr>`}
+      </tbody></table></div></div>
+      <details><summary class="muted" style="cursor:pointer;font-size:var(--step--1)">All ${fl.revs.length} revisions</summary>
+        <div class="tablebox" style="max-height:320px;overflow:auto"><table><thead><tr><th>date</th><th>change</th><th>commit</th><th>agents</th><th>evidence</th></tr></thead><tbody>
+        ${[...fl.revs].reverse().map(([d, c, sha, ag, kinds]) => `<tr><td class="num">${esc(d)}</td><td>${({ A: "added", M: "modified", D: "deleted", R: "renamed" })[c] || esc(c)}</td>
+          <td><a class="mono" href="https://github.com/${esc(repo)}/commit/${esc(sha)}" target="_blank" rel="noopener">${esc(sha.slice(0, 8))}</a></td>
+          <td>${ag.length ? ag.map(esc).join(", ") : `<span class="muted">none</span>`}</td><td>${kinds.map(k => `<span class="kind">${esc(k)}</span>`).join(" ")}</td></tr>`).join("")}
+        </tbody></table></div></details>
+    </div>
+  </article>`).join("")}`;
+}
+
+/* ---------- shell ---------- */
+function route() {
+  const h = location.hash.slice(1);
+  if (h.startsWith("repo~")) { const [, owner, ...name] = h.split("~"); state.tab = "repos"; state.repo = owner + "/" + name.join("~"); }
+  else { state.tab = ["overview", "repos", "security", "actions"].includes(h) ? h : "overview"; state.repo = null; }
+  document.querySelectorAll("nav.tabs a").forEach(a => {
+    if (a.dataset.tab === state.tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  hideTip();
+  if (state.repo) return renderRepo(state.repo);
+  ({ overview: renderOverview, repos: renderRepos, security: renderSecurity, actions: renderActions })[state.tab]();
+  scrollTo({ top: 0 });
+}
+function setView(view) {
+  state.view = view; save("view", view);
+  $("#view-all").setAttribute("aria-pressed", view === "all"); $("#view-explicit").setAttribute("aria-pressed", view === "explicit");
+  if (state.repo || state.tab === "repos") { state.filters.page = 0; return state.repo ? renderRepo(state.repo) : drawTable(); }
+  route();
+}
+
+async function start() {
+  try {
+    state.summary = await (await fetch("data/summary.json")).json();
+  } catch (err) {
+    main.innerHTML = `<div class="empty">The data files could not be loaded. Serve the explorer folder over HTTP (for example <code>python3 -m http.server -d explorer</code>) instead of opening the file directly.</div>`;
+    return;
+  }
+  const s = state.summary;
+  $("#meta").textContent = `${fmt(s.mined)} repositories mined · collected ${s.collected[0]} to ${s.collected[1]}`;
+  $("#foot").innerHTML = `GHAgentCI dataset and the <span class="mono">cai-miner</span> tool. Counts follow the paper: named agents, strong evidence, nothing before ChatGPT's release (November 2022). Data built ${esc(s.built)}.`;
+  state.filters = Object.assign(state.filters, load("filters", {}));
+  state.view = load("view", "all") === "explicit" ? "explicit" : "all";
+  $("#view-all").setAttribute("aria-pressed", state.view === "all"); $("#view-explicit").setAttribute("aria-pressed", state.view === "explicit");
+  $("#view-all").addEventListener("click", () => setView("all"));
+  $("#view-explicit").addEventListener("click", () => setView("explicit"));
+  addEventListener("hashchange", route);
+  addEventListener("scroll", hideTip, { passive: true });
+  route();
+}
+start();
+})();
+</script>

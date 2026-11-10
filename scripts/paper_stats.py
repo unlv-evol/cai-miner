@@ -29,7 +29,7 @@ import math
 import re
 import sys
 from collections import Counter, defaultdict
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,8 +40,12 @@ WEAK = ("job", "url", "env")
 # Precedence when one revision carries several strong kinds (Dataset.wiring),
 # and the names the paper gives each way of wiring an agent into CI.
 WIRING = ("ghaw", "path", "uses", "run")
-WIRING_LABEL = {"uses": "dedicated action", "run": "CLI in a shell step",
-                "path": "reserved file name", "ghaw": "gh-aw"}
+WIRING_LABEL = {
+    "uses": "dedicated action",
+    "run": "CLI in a shell step",
+    "path": "reserved file name",
+    "ghaw": "gh-aw",
+}
 WIRING_SHORT = {"uses": "action", "run": "CLI", "path": "reserved", "ghaw": "gh-aw"}
 GENERIC = "generic_ai"
 # Nothing before ChatGPT's public release can be an LLM agent invocation; the
@@ -50,11 +54,20 @@ GENERIC = "generic_ai"
 # happens to carry a key such as `tools`.
 CUTOFF = "2022-11-30"
 DISPLAY = {
-    "claude": "Claude", "codex": "Codex", "copilot": "Copilot", "gemini": "Gemini",
-    "cursor": "Cursor", "aider": "Aider", "devin": "Devin", "pr_agent": "PR-Agent",
-    "coderabbit": "CodeRabbit", "goose": "Goose", "opencode": "OpenCode",
-    "openhands": "OpenHands", GENERIC: "generic",
-    "unknown": "unspecified",   # gh-aw files whose header names no engine
+    "claude": "Claude",
+    "codex": "Codex",
+    "copilot": "Copilot",
+    "gemini": "Gemini",
+    "cursor": "Cursor",
+    "aider": "Aider",
+    "devin": "Devin",
+    "pr_agent": "PR-Agent",
+    "coderabbit": "CodeRabbit",
+    "goose": "Goose",
+    "opencode": "OpenCode",
+    "openhands": "OpenHands",
+    GENERIC: "generic",
+    "unknown": "unspecified",  # gh-aw files whose header names no engine
 }
 CHANGE_TYPES = ("Added", "Modified", "Deleted", "Renamed")
 
@@ -84,7 +97,7 @@ def instant(stamp: str) -> datetime:
     offset (`...T10:00:00-07:00`), so comparing the strings misorders commits
     made in different time zones."""
     moment = datetime.fromisoformat(stamp)
-    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
 def long_date(d: date) -> str:
@@ -127,7 +140,10 @@ def run_dates(out: Path) -> tuple[date, date]:
 class Dataset:
     """The run's tables, reduced to the named-agent view the paper reports."""
 
-    def __init__(self, out: Path, include_generic: bool):
+    def __init__(self, out: Path, include_generic: bool, keep=None):
+        """`keep`, if given, decides which strong evidence rows may make a
+        revision agentic (the dataset explorer's "explicit calls only" view);
+        every row still counts as an invocation."""
         self.repos = read(out / "repositories.csv")
         self.revisions = read(out / "revisions.csv")
         self.steps = read(out / "steps.csv")
@@ -148,6 +164,8 @@ class Dataset:
         for s in self.steps:
             if s["evidence_kind"] not in STRONG:
                 continue
+            if keep is not None and not keep(s):
+                continue
             if counted(s["agent"]):
                 key = (s["repository"], s["uid"], s["commit_hash"])
                 self.agents_at[key].add(s["agent"])
@@ -166,10 +184,17 @@ class Dataset:
         for revs in self.histories.values():
             revs.sort(key=lambda r: r["_order"])
         self.agentic_histories = {
-            key for key, revs in self.histories.items()
+            key
+            for key, revs in self.histories.items()
             if any((key[0], key[1], r["commit_hash"]) in self.agents_at for r in revs)
         }
         self.generic_repos -= {key[0] for key in self.agentic_histories}
+        # An invocation belongs to the dataset only if its history does: weak
+        # evidence in a history that never becomes agentic (488 rows on the full
+        # run) is left out, so these counts match the released steps table.
+        self.invocations = [
+            s for s in self.invocations if (s["repository"], s["uid"]) in self.agentic_histories
+        ]
         # What the cutoff removed from the reported figures: invocations of the
         # counted agents, and histories that were agentic only through them.
         early = [s for s in early if counted(s["agent"])]
@@ -263,7 +288,9 @@ def macros(d: Dataset, out: Path, trial: str | None) -> dict[str, str]:
     mined = status["ok"] + status["incomplete"]
     m["nMinedRepos"] = count(mined)
     m["nIncompleteRepos"] = count(status["incomplete"])
-    m["nErrorRepos"] = count(sum(n for s, n in status.items() if s not in ("ok", "incomplete", "excluded")))
+    m["nErrorRepos"] = count(
+        sum(n for s, n in status.items() if s not in ("ok", "incomplete", "excluded"))
+    )
     m["nExcludedRepos"] = count(status["excluded"])
 
     first_run, last_run = run_dates(out)
@@ -312,29 +339,39 @@ def macros(d: Dataset, out: Path, trial: str | None) -> dict[str, str]:
 
     # gh-aw lock headers name their engine only from some compiler release on;
     # older lock files make up the "unnamed" row of Table III.
-    named = [x["compiler_version"] for x in d.manifests
-             if x["artifact_kind"] != "source" and x["agent_id"] and x["compiler_version"]]
+    named = [
+        x["compiler_version"]
+        for x in d.manifests
+        if x["artifact_kind"] != "source" and x["agent_id"] and x["compiler_version"]
+    ]
     if named:
         oldest = min(named, key=lambda v: tuple(int(p) for p in re.findall(r"\d+", v)))
         m["ghawEngineSince"] = oldest
 
-    for name, n in (("nAgenticRepos", len(repos)), ("nHistories", len(d.agentic_histories)),
-                    ("nRevisions", len(rows)), ("nInvocations", len(d.invocations))):
+    for name, n in (
+        ("nAgenticRepos", len(repos)),
+        ("nHistories", len(d.agentic_histories)),
+        ("nRevisions", len(rows)),
+        ("nInvocations", len(d.invocations)),
+    ):
         m[f"{name}K"] = kplus(n)
 
     # Last-snapshot column, each as a share of its all-snapshots figure.
     latest = list(d.latest.values())
     latest_keys = {(r["repository"], r["uid"], r["commit_hash"]) for r in latest}
-    inv_last = [s for s in d.invocations
-                if (s["repository"], s["uid"], s["commit_hash"]) in latest_keys]
+    inv_last = [
+        s for s in d.invocations if (s["repository"], s["uid"], s["commit_hash"]) in latest_keys
+    ]
     kinds_last = Counter(s["evidence_kind"] for s in inv_last)
     repos_last = {r["repository"] for r in latest if d.agents(r)}
     pairs = {
         "AgenticRepos": (len(repos_last), len(repos)),
         "GhawRepos": (len(repos_last & ghaw), len(ghaw & repos)),
         "Histories": (len(latest), len(d.agentic_histories)),
-        "Commits": (len({(r["repository"], r["commit_hash"]) for r in latest}),
-                    len({(r["repository"], r["commit_hash"]) for r in rows})),
+        "Commits": (
+            len({(r["repository"], r["commit_hash"]) for r in latest}),
+            len({(r["repository"], r["commit_hash"]) for r in rows}),
+        ),
         "Revisions": (len(latest), len(rows)),
         "AgenticRevisions": (sum(1 for r in latest if d.agents(r)), len(agentic_rows)),
         "Invocations": (len(inv_last), len(d.invocations)),
@@ -376,7 +413,7 @@ def macros(d: Dataset, out: Path, trial: str | None) -> dict[str, str]:
 
 def _names(items: list[str]) -> str:
     """`a`, `a and b`, `a, b and c`, in sans serif as the paper sets names."""
-    items = [f"\\code{{{i.replace('_', '\\_')}}}" for i in items]
+    items = ["\\code{" + i.replace("_", "\\_") + "}" for i in items]
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
@@ -404,14 +441,16 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
     m["pctGated"] = share(lambda r: r.get("actor_gated") == "True")
 
     keys = {(r["repository"], r["uid"], r["commit_hash"]) for r in latest}
-    invocations = [s for s in d.invocations
-                   if (s["repository"], s["uid"], s["commit_hash"]) in keys]
+    invocations = [
+        s for s in d.invocations if (s["repository"], s["uid"], s["commit_hash"]) in keys
+    ]
     uses = [s for s in invocations if s["evidence_kind"] == "uses" and s["action"]]
     sha = sum(1 for s in uses if re.fullmatch(r"[0-9a-f]{40}", s.get("action_version") or ""))
     m["nUsesLatest"] = count(len(uses))
     m["pctShaPinned"] = pct(sha, len(uses))
-    tasks = Counter(t for s in invocations
-                    for t in set(filter(None, (s.get("tasks") or "").split("|"))))
+    tasks = Counter(
+        t for s in invocations for t in set(filter(None, (s.get("tasks") or "").split("|")))
+    )
     for label, task in (("Review", "review"), ("Triage", "triage"), ("Implement", "implement")):
         m[f"pctTask{label}"] = pct(tasks[task], len(invocations))
 
@@ -422,16 +461,19 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
             repos_by_agent[agent].add(r["repository"])
     # gh-aw files that name no engine are certain invocations of an unknown
     # agent: counted everywhere, but not ranked as an agent in the prose.
-    ranked = sorted((a for a in repos_by_agent if a != "unknown"),
-                    key=lambda a: (-len(repos_by_agent[a]), a))
+    ranked = sorted(
+        (a for a in repos_by_agent if a != "unknown"), key=lambda a: (-len(repos_by_agent[a]), a)
+    )
     for slot, agent in zip("ABC", ranked):
         m[f"agent{slot}"] = DISPLAY.get(agent, agent)
         m[f"nAgentRepos{slot}"] = count(len(repos_by_agent[agent]))
 
     # gh-aw sources at the last snapshot: the constraints maintainers declare.
-    sources = [x for x in d.manifests
-               if x["artifact_kind"] == "source"
-               and (x["repository"], x["uid"], x["commit_hash"]) in keys]
+    sources = [
+        x
+        for x in d.manifests
+        if x["artifact_kind"] == "source" and (x["repository"], x["uid"], x["commit_hash"]) in keys
+    ]
     m["nGhawSourcesLast"] = count(len(sources))
     if sources:
         k = len(sources)
@@ -439,8 +481,9 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
         m["pctGhawNetwork"] = pct(sum(x["network"] == "custom" for x in sources), k)
         m["pctGhawStrict"] = pct(sum(x["strict"] == "True" for x in sources), k)
         # `noop` is gh-aw's explicit "do nothing" output, not a capability.
-        outputs = Counter(o for x in sources for o in filter(None, x["safe_outputs"].split("|"))
-                          if o != "noop")
+        outputs = Counter(
+            o for x in sources for o in filter(None, x["safe_outputs"].split("|")) if o != "noop"
+        )
         m["ghawTopOutputs"] = _names([o for o, _ in outputs.most_common(3)])
         m["pctGhawTopOutput"] = pct(outputs.most_common(1)[0][1], k) if outputs else "0.0"
 
@@ -478,9 +521,13 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
 
     # Fig. 3 in numbers, from the same rows the figure draws.
     rows = {row["label"]: row for row in trigger_constraints(d)}
-    for label, name in (("issue or comment", "Comment"), ("schedule", "Schedule"),
-                        ("manual dispatch", "Dispatch"), ("pull_request_target", "PRTarget"),
-                        ("pull request", "PR")):
+    for label, name in (
+        ("issue or comment", "Comment"),
+        ("schedule", "Schedule"),
+        ("manual dispatch", "Dispatch"),
+        ("pull_request_target", "PRTarget"),
+        ("pull request", "PR"),
+    ):
         if label in rows:
             row = rows[label]
             m[f"pctPerm{name}"] = f"{row['permissions']:.0f}"
@@ -493,8 +540,12 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 # analyses behind the figures and the per-agent table
 
-PR_EVENTS = ("pull_request", "pull_request_target", "pull_request_review",
-             "pull_request_review_comment")
+PR_EVENTS = (
+    "pull_request",
+    "pull_request_target",
+    "pull_request_review",
+    "pull_request_review_comment",
+)
 ISSUE_EVENTS = ("issues", "issue_comment")
 
 
@@ -534,8 +585,9 @@ def kaplan_meier(observations: list[tuple[int, bool]]) -> list[tuple[int, float,
     return curve
 
 
-def kaplan_meier_ci(observations: list[tuple[int, bool]],
-                    z: float = 1.96) -> list[tuple[int, float, float, float, int]]:
+def kaplan_meier_ci(
+    observations: list[tuple[int, bool]], z: float = 1.96
+) -> list[tuple[int, float, float, float, int]]:
     """Kaplan-Meier with a pointwise confidence interval: (time, survival,
     lower, upper, number at risk before it).
 
@@ -598,14 +650,21 @@ def trigger_constraints(d: Dataset) -> list[dict]:
         group = [r for r in latest if set((r.get("triggers") or "").split("|")) & set(events)]
         if not group:
             continue
-        pinned = [p for r in group for p in pins.get((r["repository"], r["uid"], r["commit_hash"]), [])]
+        pinned = [
+            p for r in group for p in pins.get((r["repository"], r["uid"], r["commit_hash"]), [])
+        ]
         n = len(group)
-        rows.append({
-            "label": label, "n": n,
-            "permissions": 100 * sum(1 for r in group if (r.get("permissions") or "").strip()) / n,
-            "gated": 100 * sum(1 for r in group if r.get("actor_gated") == "True") / n,
-            "pinned": 100 * sum(pinned) / len(pinned) if pinned else None,
-        })
+        rows.append(
+            {
+                "label": label,
+                "n": n,
+                "permissions": 100
+                * sum(1 for r in group if (r.get("permissions") or "").strip())
+                / n,
+                "gated": 100 * sum(1 for r in group if r.get("actor_gated") == "True") / n,
+                "pinned": 100 * sum(pinned) / len(pinned) if pinned else None,
+            }
+        )
     return rows
 
 
@@ -622,13 +681,16 @@ def agent_profiles(d: Dataset, rows_cap: int = 4) -> list[dict]:
         k = (s["repository"], s["uid"], s["commit_hash"])
         if k in keys and s["evidence_kind"] == "uses" and s["action"]:
             pinned[(k, s["agent"])].append(
-                bool(re.fullmatch(r"[0-9a-f]{40}", s.get("action_version") or "")))
+                bool(re.fullmatch(r"[0-9a-f]{40}", s.get("action_version") or ""))
+            )
     by_agent: dict[str, list[dict]] = defaultdict(list)
     for r in latest:
         for agent in d.agents(r):
             by_agent[agent].append(r)
-    ranked = sorted((a for a in by_agent if a != "unknown"),
-                    key=lambda a: (-len({r["repository"] for r in by_agent[a]}), a))
+    ranked = sorted(
+        (a for a in by_agent if a != "unknown"),
+        key=lambda a: (-len({r["repository"] for r in by_agent[a]}), a),
+    )
     groups = [(DISPLAY.get(a, a), [a]) for a in ranked[:rows_cap]]
     rest = ranked[rows_cap:]
     if rest:
@@ -640,8 +702,12 @@ def agent_profiles(d: Dataset, rows_cap: int = 4) -> list[dict]:
         n = len(rows)
         wiring = Counter(d.wiring(r) for r in rows)
         top, top_n = wiring.most_common(1)[0]
-        pins = [p for r in rows for a in agents
-                for p in pinned.get(((r["repository"], r["uid"], r["commit_hash"]), a), [])]
+        pins = [
+            p
+            for r in rows
+            for a in agents
+            for p in pinned.get(((r["repository"], r["uid"], r["commit_hash"]), a), [])
+        ]
 
         def share(pred) -> str:
             return ipct(sum(1 for r in rows if pred(r)), n)
@@ -695,30 +761,31 @@ def _style():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    plt.rcParams.update({
-        "font.family": "serif",
-        "font.serif": ["Times New Roman", "Times", "STIXGeneral", "DejaVu Serif"],
-        "mathtext.fontset": "stix",
-        "font.size": 8,
-        "axes.titlesize": 8,
-        "axes.labelsize": 8,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "legend.fontsize": 7,
-        "axes.edgecolor": INK_2,
-        "axes.labelcolor": INK,
-        "xtick.color": INK_2,
-        "ytick.color": INK_2,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.linewidth": 0.6,
-        "grid.color": GRID,
-        "grid.linewidth": 0.5,
-        "pdf.fonttype": 42,   # embed TrueType: IEEE PDF eXpress rejects Type 3
-        "ps.fonttype": 42,
-    })
+    plt.rcParams.update(
+        {
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times", "STIXGeneral", "DejaVu Serif"],
+            "mathtext.fontset": "stix",
+            "font.size": 8,
+            "axes.titlesize": 8,
+            "axes.labelsize": 8,
+            "xtick.labelsize": 7,
+            "ytick.labelsize": 7,
+            "legend.fontsize": 7,
+            "axes.edgecolor": INK_2,
+            "axes.labelcolor": INK,
+            "xtick.color": INK_2,
+            "ytick.color": INK_2,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.linewidth": 0.6,
+            "grid.color": GRID,
+            "grid.linewidth": 0.5,
+            "pdf.fonttype": 42,  # embed TrueType: IEEE PDF eXpress rejects Type 3
+            "ps.fonttype": 42,
+        }
+    )
     return plt
-
 
 
 def plot_start(d: Dataset, end: date, share: float = 0.01) -> date:
@@ -729,14 +796,12 @@ def plot_start(d: Dataset, end: date, share: float = 0.01) -> date:
     matters into its right edge. The text states where the plots start.
     """
     monthly = Counter(
-        day(r["commit_date"]).replace(day=1)
-        for r in d.rows_in_histories() if d.agents(r)
+        day(r["commit_date"]).replace(day=1) for r in d.rows_in_histories() if d.agents(r)
     )
     if not monthly:
         return end.replace(day=1)
     peak = max(monthly.values())
     return min(m for m, n in monthly.items() if n >= share * peak)
-
 
 
 def wiring_figure(d: Dataset, path: Path, observed_until: date) -> None:
@@ -758,12 +823,19 @@ def wiring_figure(d: Dataset, path: Path, observed_until: date) -> None:
     for kind, colour in zip(order, SERIES):
         heights = [100 * c[kind] / (sum(c.values()) or 1) for _, c in quarters]
         # White edges give the 2px surface gap between stacked segments.
-        ax.bar(xs, heights, bottom=bottoms, width=0.72, color=colour,
-               edgecolor="white", linewidth=0.8, label=WIRING_LABEL[kind])
+        ax.bar(
+            xs,
+            heights,
+            bottom=bottoms,
+            width=0.72,
+            color=colour,
+            edgecolor="white",
+            linewidth=0.8,
+            label=WIRING_LABEL[kind],
+        )
         bottoms = [b + h for b, h in zip(bottoms, heights)]
     for x, (_, c) in zip(xs, quarters):
-        ax.text(x, 102, f"{sum(c.values()):,}", ha="center", va="bottom",
-                fontsize=6, color=INK_2)
+        ax.text(x, 102, f"{sum(c.values()):,}", ha="center", va="bottom", fontsize=6, color=INK_2)
     # Direct labels beside the last bar, at each segment's middle.
     last = quarters[-1][1]
     total = sum(last.values()) or 1
@@ -771,8 +843,14 @@ def wiring_figure(d: Dataset, path: Path, observed_until: date) -> None:
     for kind in order:
         h = 100 * last[kind] / total
         if h >= 4:
-            ax.text(len(quarters) - 1 + 0.42, level + h / 2, WIRING_SHORT[kind],
-                    va="center", fontsize=6.5, color=INK)
+            ax.text(
+                len(quarters) - 1 + 0.42,
+                level + h / 2,
+                WIRING_SHORT[kind],
+                va="center",
+                fontsize=6.5,
+                color=INK,
+            )
         level += h
     ax.set_xticks(list(xs))
     ax.set_xticklabels([q.replace(" ", "\n") for q, _ in quarters])
@@ -783,8 +861,16 @@ def wiring_figure(d: Dataset, path: Path, observed_until: date) -> None:
     ax.grid(axis="y")
     ax.set_axisbelow(True)
     ax.tick_params(axis="x", length=0)
-    ax.legend(frameon=False, ncol=4, loc="upper left", bbox_to_anchor=(-0.02, 1.2),
-              handlelength=1.0, columnspacing=0.8, handletextpad=0.4, fontsize=6.5)
+    ax.legend(
+        frameon=False,
+        ncol=4,
+        loc="upper left",
+        bbox_to_anchor=(-0.02, 1.2),
+        handlelength=1.0,
+        columnspacing=0.8,
+        handletextpad=0.4,
+        fontsize=6.5,
+    )
     fig.tight_layout(pad=0.2)
     fig.savefig(path)
     plt.close(fig)
@@ -801,19 +887,36 @@ def constraints_figure(d: Dataset, path: Path) -> None:
     """
     plt = _style()
     rows = trigger_constraints(d)
-    series = (("permissions", "permissions declared", "o"),
-              ("gated", "actor restricted", "s"),
-              ("pinned", "action pinned to a SHA", "^"))
+    series = (
+        ("permissions", "permissions declared", "o"),
+        ("gated", "actor restricted", "s"),
+        ("pinned", "action pinned to a SHA", "^"),
+    )
     fig, ax = plt.subplots(figsize=(3.5, 0.62 + 0.17 * len(rows)))
-    ys = list(range(len(rows)))[::-1]          # first row at the top
+    ys = list(range(len(rows)))[::-1]  # first row at the top
     for y, row in zip(ys, rows):
         values = [row[key] for key, _, _ in series if row[key] is not None]
-        ax.plot([min(values), max(values)], [y, y], color=GRID, linewidth=1.6,
-                solid_capstyle="round", zorder=1)
+        ax.plot(
+            [min(values), max(values)],
+            [y, y],
+            color=GRID,
+            linewidth=1.6,
+            solid_capstyle="round",
+            zorder=1,
+        )
     for (key, label, marker), colour in zip(series, SERIES):
         points = [(row[key], y) for y, row in zip(ys, rows) if row[key] is not None]
-        ax.scatter([x for x, _ in points], [y for _, y in points], s=16, marker=marker,
-                   color=colour, edgecolors="white", linewidths=0.6, zorder=3, label=label)
+        ax.scatter(
+            [x for x, _ in points],
+            [y for _, y in points],
+            s=16,
+            marker=marker,
+            color=colour,
+            edgecolors="white",
+            linewidths=0.6,
+            zorder=3,
+            label=label,
+        )
     ax.set_yticks(ys)
     ax.set_yticklabels([f"{row['label']} ({row['n']:,})" for row in rows])
     ax.set_xlim(0, 100)
@@ -828,15 +931,25 @@ def constraints_figure(d: Dataset, path: Path) -> None:
     # Centred over the whole figure, not the axes: the row labels take a third
     # of the width, and an axes-anchored legend would run off the right edge.
     handles, labels = ax.get_legend_handles_labels()
-    fig.legend(handles, labels, frameon=False, ncol=3, loc="upper center",
-               bbox_to_anchor=(0.5, 1.0), handletextpad=0.2, columnspacing=1.0,
-               fontsize=6.5, markerscale=1.1)
+    fig.legend(
+        handles,
+        labels,
+        frameon=False,
+        ncol=3,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        handletextpad=0.2,
+        columnspacing=1.0,
+        fontsize=6.5,
+        markerscale=1.1,
+    )
     fig.savefig(path)
     plt.close(fig)
 
 
-def abandonment_figure(d: Dataset, path: Path, observed_until: date,
-                       min_at_risk: int = 50, horizon_months: int = 18) -> None:
+def abandonment_figure(
+    d: Dataset, path: Path, observed_until: date, min_at_risk: int = 50, horizon_months: int = 18
+) -> None:
     """Fig. 3: share of repositories still invoking an agent, by months since
     adoption (Kaplan-Meier with 95% bands), per agent adopted first.
 
@@ -869,8 +982,9 @@ def abandonment_figure(d: Dataset, path: Path, observed_until: date,
         curve = [p for p in curve if p[4] >= min_at_risk and p[0] <= horizon] or curve[:1]
         # A curve still observed at the window's edge runs to it, flat.
         last_t = curve[-1][0]
-        reaches_edge = any(t > horizon for t, _, _, _, n in kaplan_meier_ci(obs)
-                           if n >= min_at_risk)
+        reaches_edge = any(
+            t > horizon for t, _, _, _, n in kaplan_meier_ci(obs) if n >= min_at_risk
+        )
         if reaches_edge and last_t < horizon:
             curve.append((horizon, *curve[-1][1:]))
         xs = [t / month for t, *_ in curve]
@@ -886,8 +1000,15 @@ def abandonment_figure(d: Dataset, path: Path, observed_until: date,
     # bottom. Curves stop at different ages, so labels at their ends would land
     # on top of other curves.
     ends.sort(key=lambda e: -e[0])
-    ax.legend([e[2] for e in ends], [e[1] for e in ends], frameon=False,
-              loc="lower left", fontsize=6.5, handlelength=1.2, borderaxespad=0.2)
+    ax.legend(
+        [e[2] for e in ends],
+        [e[1] for e in ends],
+        frameon=False,
+        loc="lower left",
+        fontsize=6.5,
+        handlelength=1.2,
+        borderaxespad=0.2,
+    )
     # The axis ends with the longest curve, so no labelled stretch is empty
     # and no curve runs past the last tick by more than a few weeks.
     ax.set_xticks(range(0, int(x_max) + 1, 3))
@@ -911,14 +1032,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("out", help="mining output directory (merged CSVs)")
     parser.add_argument("--tex", default=str(SHARED / "numbers-dataset.tex"))
     parser.add_argument("--figures", default=str(SHARED / "figures"))
-    parser.add_argument("--trial", metavar="DESCRIPTION",
-                        help="a dry run: mark the figures as placeholders, and report the "
-                             "run's own size as the candidate list so the abstract stays consistent")
-    parser.add_argument("--provisional", metavar="DESCRIPTION",
-                        help="the real run, not yet final (e.g. retries pending): keep the "
-                             "banner, change no figure")
-    parser.add_argument("--include-generic", action="store_true",
-                        help="count generic_ai as agentic (only if validation folds it in)")
+    parser.add_argument(
+        "--trial",
+        metavar="DESCRIPTION",
+        help="a dry run: mark the figures as placeholders, and report the "
+        "run's own size as the candidate list so the abstract stays consistent",
+    )
+    parser.add_argument(
+        "--provisional",
+        metavar="DESCRIPTION",
+        help="the real run, not yet final (e.g. retries pending): keep the "
+        "banner, change no figure",
+    )
+    parser.add_argument(
+        "--include-generic",
+        action="store_true",
+        help="count generic_ai as agentic (only if validation folds it in)",
+    )
     args = parser.parse_args(argv)
 
     out = Path(args.out)
@@ -932,6 +1062,7 @@ def main(argv: list[str] | None = None) -> int:
         "% Macros absent here fall back to numbers-defaults.tex and render as [??].",
     ]
     lines += [f"\\def\\{k}{{{v}}}" for k, v in sorted(values.items())]
+    Path(args.tex).parent.mkdir(parents=True, exist_ok=True)
     Path(args.tex).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     figures = Path(args.figures)
@@ -943,10 +1074,20 @@ def main(argv: list[str] | None = None) -> int:
     table = Path(args.tex).with_name("table-agents.tex")
     table.write_text(agent_table(agent_profiles(d)), encoding="utf-8")
 
-    print(f"wrote {len(values)} macros to {args.tex}, 3 figures to {figures} "
-          f"and the per-agent table to {table}", file=sys.stderr)
-    for key in ("nMinedRepos", "nAgenticRepos", "pctAgenticRepos", "nHistories",
-                "nRevisions", "nInvocations", "nGenericRepos"):
+    print(
+        f"wrote {len(values)} macros to {args.tex}, 3 figures to {figures} "
+        f"and the per-agent table to {table}",
+        file=sys.stderr,
+    )
+    for key in (
+        "nMinedRepos",
+        "nAgenticRepos",
+        "pctAgenticRepos",
+        "nHistories",
+        "nRevisions",
+        "nInvocations",
+        "nGenericRepos",
+    ):
         print(f"  {key:<18} {values.get(key)}", file=sys.stderr)
     return 0
 

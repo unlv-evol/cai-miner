@@ -9,11 +9,15 @@ and rename detection in a single pass.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import threading
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from itertools import count
+from pathlib import Path
+from typing import IO
 
 # NUL-separated header, prefixed by \x01 so commits can be split apart even
 # though the raw entries that follow are themselves NUL-separated.
@@ -187,13 +191,9 @@ def iter_file_revisions(
                 authored_date=authored_date,
                 commit_date=commit_date,
                 file_path=path,
-                previous_file_path=(
-                    entry["old_path"] if entry["old_path"] != path else None
-                ),
+                previous_file_path=(entry["old_path"] if entry["old_path"] != path else None),
                 file_hash=None if entry["new_sha"] == _NULL_SHA else entry["new_sha"],
-                previous_file_hash=(
-                    None if entry["old_sha"] == _NULL_SHA else entry["old_sha"]
-                ),
+                previous_file_hash=(None if entry["old_sha"] == _NULL_SHA else entry["old_sha"]),
                 git_change_type=CHANGE_TYPES.get(code, code),
                 symbolic_link=entry["new_mode"] == _SYMLINK_MODE,
                 previous_symbolic_link=entry["old_mode"] == _SYMLINK_MODE,
@@ -225,10 +225,7 @@ def is_partial_clone(repo: str) -> bool:
 def partial_clone_filter(repo: str) -> str | None:
     """The filter spec a partial clone was made with, e.g. `blob:limit=65536`."""
     try:
-        return (
-            _run(repo, ["config", "--get", "remote.origin.partialclonefilter"]).strip()
-            or None
-        )
+        return _run(repo, ["config", "--get", "remote.origin.partialclonefilter"]).strip() or None
     except GitError:
         return None
 
@@ -254,19 +251,18 @@ def missing_blobs(repo: str, blob_hashes: list[str]) -> list[str]:
         env={**os.environ, "GIT_NO_LAZY_FETCH": "1"},
     )
     assert proc.stdin and proc.stdout
+    stdin = proc.stdin
 
     def feed() -> None:
         try:
             for sha in wanted:
-                proc.stdin.write(f"{sha}\n".encode())
-            proc.stdin.flush()
+                stdin.write(f"{sha}\n".encode())
+            stdin.flush()
         except (BrokenPipeError, ValueError):
             pass
         finally:
-            try:
-                proc.stdin.close()
-            except (BrokenPipeError, ValueError):
-                pass
+            with suppress(BrokenPipeError, ValueError):
+                stdin.close()
 
     writer = threading.Thread(target=feed, daemon=True)
     writer.start()
@@ -327,7 +323,7 @@ def prefetch_blobs(repo: str, blob_hashes: list[str], batch: int = 2000) -> int:
     return len(wanted)
 
 
-def _read_exactly(stream, size: int) -> bytes | None:
+def _read_exactly(stream: IO[bytes], size: int) -> bytes | None:
     """Read exactly `size` bytes, or None at end of stream.
 
     `read(n)` on a pipe is allowed to return short, and a short read here
@@ -370,19 +366,18 @@ def iter_blobs(repo: str, blob_hashes: list[str]) -> Iterator[tuple[str, str]]:
         stderr=subprocess.DEVNULL,
     )
     assert proc.stdin and proc.stdout
+    stdin = proc.stdin
 
     def feed() -> None:
         try:
             for sha in wanted:
-                proc.stdin.write(f"{sha}\n".encode())
-            proc.stdin.flush()
+                stdin.write(f"{sha}\n".encode())
+            stdin.flush()
         except (BrokenPipeError, ValueError):
             pass
         finally:
-            try:
-                proc.stdin.close()
-            except (BrokenPipeError, ValueError):
-                pass
+            with suppress(BrokenPipeError, ValueError):
+                stdin.close()
 
     writer = threading.Thread(target=feed, daemon=True)
     writer.start()
@@ -416,9 +411,6 @@ def read_blobs(repo: str, blob_hashes: list[str]) -> dict[str, str]:
 
 def repository_name(repo: str) -> str:
     """Best-effort owner/name for a clone, falling back to the directory name."""
-    import os
-    import re
-
     try:
         url = _run(repo, ["config", "--get", "remote.origin.url"]).strip()
     except GitError:
@@ -426,4 +418,4 @@ def repository_name(repo: str) -> str:
     match = re.search(r"[:/]([^/:]+/[^/]+?)(?:\.git)?/?$", url)
     if match:
         return match.group(1)
-    return os.path.basename(os.path.abspath(repo.rstrip("/")))
+    return Path(repo).resolve().name

@@ -1,14 +1,16 @@
-"""Command line interface for awe."""
+"""Command line interface for cai-miner."""
 
 from __future__ import annotations
 
 import argparse
 import csv
 import sys
+from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
 
-from .config import ConfigError, load_config
+from . import __version__
+from .config import DEFAULT_CATALOGUE, ConfigError, load_config
 from .extract import RepoSummary, extract_repository
 from .gitlog import GitError, repository_name
 
@@ -118,7 +120,7 @@ SUMMARY_FIELDS = [
     "status",
 ]
 
-DEFAULT_CONFIG = Path(__file__).resolve().parents[2] / "config" / "default.toml"
+DEFAULT_CONFIG = DEFAULT_CATALOGUE
 
 
 class _Writer:
@@ -135,13 +137,11 @@ class _Writer:
             new = not path.exists() or path.stat().st_size == 0
             path.parent.mkdir(parents=True, exist_ok=True)
             self.handle = path.open("a", newline="", encoding="utf-8")
-            self.writer = csv.DictWriter(
-                self.handle, fieldnames=fields, extrasaction="ignore"
-            )
+            self.writer = csv.DictWriter(self.handle, fieldnames=fields, extrasaction="ignore")
             if new:
                 self.writer.writeheader()
 
-    def write(self, rows) -> None:
+    def write(self, rows: Iterable[dict]) -> None:
         if self.writer is None:
             return
         for row in rows:
@@ -154,10 +154,10 @@ class _Writer:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="awe",
+        prog="cai-miner",
         description=(
-            "Agentic Workflow Extractor: mine git histories of CI workflow "
-            "files and detect coding-agent invocations inside them."
+            "Mine the git history of CI workflow files and detect the "
+            "coding-agent invocations inside them."
         ),
     )
     parser.add_argument(
@@ -183,9 +183,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--rev", default="HEAD", help="commit reference to start from (default: HEAD)"
     )
-    parser.add_argument(
-        "--since", help="ignore commits older than this date (e.g. 2024-01-01)"
-    )
+    parser.add_argument("--since", help="ignore commits older than this date (e.g. 2024-01-01)")
     parser.add_argument(
         "--include-weak",
         action="store_true",
@@ -218,6 +216,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="abort on the first repository that errors out",
     )
     parser.add_argument("-q", "--quiet", action="store_true", help="suppress progress")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     return parser
 
 
@@ -232,34 +231,26 @@ def main(argv: list[str] | None = None) -> int:
             if line.strip() and not line.startswith("#")
         ]
     if not targets:
-        print("awe: no repositories given", file=sys.stderr)
+        print("cai-miner: no repositories given", file=sys.stderr)
         return 2
     if args.repository and len(targets) != 1:
-        print("awe: --repository names a single repository", file=sys.stderr)
+        print("cai-miner: --repository names a single repository", file=sys.stderr)
         return 2
 
     try:
         config = load_config(args.config)
     except (OSError, ConfigError) as error:
-        print(f"awe: {error}", file=sys.stderr)
+        print(f"cai-miner: {error}", file=sys.stderr)
         return 2
 
     out_dir = Path(args.out_dir) if args.out_dir else None
-    revision_writer = _Writer(
-        out_dir / "revisions.csv" if out_dir else None, REVISION_FIELDS
-    )
+    revision_writer = _Writer(out_dir / "revisions.csv" if out_dir else None, REVISION_FIELDS)
     step_writer = _Writer(out_dir / "steps.csv" if out_dir else None, STEP_FIELDS)
-    summary_writer = _Writer(
-        out_dir / "repositories.csv" if out_dir else None, SUMMARY_FIELDS
-    )
-    manifest_writer = _Writer(
-        out_dir / "ghaw_manifests.csv" if out_dir else None, MANIFEST_FIELDS
-    )
+    summary_writer = _Writer(out_dir / "repositories.csv" if out_dir else None, SUMMARY_FIELDS)
+    manifest_writer = _Writer(out_dir / "ghaw_manifests.csv" if out_dir else None, MANIFEST_FIELDS)
     stdout_writer = None
     if out_dir is None:
-        stdout_writer = csv.DictWriter(
-            sys.stdout, fieldnames=STEP_FIELDS, extrasaction="ignore"
-        )
+        stdout_writer = csv.DictWriter(sys.stdout, fieldnames=STEP_FIELDS, extrasaction="ignore")
         stdout_writer.writeheader()
 
     failures = 0
@@ -279,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             except (GitError, OSError) as error:
                 failures += 1
-                print(f"awe: {target}: {error}", file=sys.stderr)
+                print(f"cai-miner: {target}: {error}", file=sys.stderr)
                 # Still emit a row. A repository that vanishes from the summary
                 # is indistinguishable from one that was never in the sample,
                 # which quietly biases any adoption rate computed from it.
@@ -287,10 +278,7 @@ def main(argv: list[str] | None = None) -> int:
                     [
                         {
                             **asdict(
-                                RepoSummary(
-                                    repository=args.repository
-                                    or repository_name(target)
-                                )
+                                RepoSummary(repository=args.repository or repository_name(target))
                             ),
                             "status": "error",
                         }

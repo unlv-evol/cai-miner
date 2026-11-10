@@ -1,0 +1,31 @@
+unit_id,permalink,scope,job_id,step_index,step_name,q1_invocation,q2_agent,notes
+C001,https://github.com/fsprojects/Paket/blob/c8ff9af337b09928478edfc66e91f32af3250bd9/.github/workflows/repo-assist.md,file,,,,no,,
+C002,https://github.com/majorcontext/moat/blob/ef46ef739ea5edf0bcc8ce95c6bb278217286faa/.github/workflows/claude-code-review.yml,step,claude-review,2,Run Claude Code Review,yes,claude,
+C003,https://github.com/danielcherubini/elegoo-homeassistant/blob/c601075797c04cde688ad81f740a3cbf21f6c6ad/.github/workflows/gemini-pr-review.yml,step,review-pr,3,Get PR details (issue_comment & reviews),no,,Would be gemini if not bounded by step
+C004,https://github.com/timescale/timescaledb/blob/12fbe6ba7f2432db1c9a0a73851a9e20ac36360d/.github/workflows/llm-fuzzer.yaml,step,fuzzer,11,Install Claude Code,no,,Would be if not bunded by step
+C005,https://github.com/8b-is/smart-tree/blob/3bca9243ff0a0e87b25ea81528fcdf886b8e51d1/.github/workflows/claude-code-review.yml,step,claude-review,1,Run Claude Code Review,yes,claude,
+C006,https://github.com/bostonaholic/team/blob/b8f81e90bbcca5d2ee4c4c67594eb774d330e399/.github/workflows/behavioral-evals.yml,step,behavioral-evals,4,Run ${{ matrix.suite.name }} agent live,yes,claude,
+C007,https://github.com/voidzero-dev/vibe-dashboard/blob/6cc9ca571f9f3071ca0f445f7bf54a9721906433/.github/workflows/copilot-setup-steps.yml,file,,,,no,,
+C008,https://github.com/everruns/everruns/blob/2526de84e6fa8049c47f2febe25cc3996eb11286/.github/workflows/ci.yml,file,integration-test,,,maybe,gemini,"I think gemini is being used, needs a double check"
+C009,https://github.com/nkdagility/azure-devops-migration-tools/blob/318340c6cab7608407b07914cbf10d1867f2b2be/.github/workflows/code-review.yml,step,code-review,1,,yes,generic_ai,
+C010,https://github.com/easystats/report/blob/1f7e9b1c650a639db86a3bfa12c8e944e8d56f13/.github/workflows/copilot-setup-steps.yml,file,,,,no,,
+C011,https://github.com/pine-vm/pine/blob/3530caad817fa06c1501bd715c4e6a79ca72c712/.github/workflows/copilot-setup-steps.yml,file,,,,no,,
+C012,https://github.com/jungjaehoon-lifegamez/MAMA/blob/ab21424c8257d24a1f7e0bfce1eba5a802e6066f/.github/workflows/README.md,file,,,,no,,
+C013,https://github.com/bridgecrewio/checkov/blob/6e256598b94624c6e5ae9dd027a464e1f0a0fc93/.github/workflows/pr-test.yml,step,unit-tests,7,Run Redefine.dev,no,,
+C014,https://github.com/plastic-labs/honcho/blob/c794c73bc038d0e5ab289b37b0788b02914e6f62/.github/workflows/claude.yml,step,claude,1,Run Claude Code,yes,claude,
+C015,https://github.com/ublue-os/bluefin/blob/ea5de2879fba80fd66f951b378dab549150ce85c/.github/workflows/moderator.yml,step,spam-detection,1,,maybe,generic_ai,The context makes it seem that way
+C016,https://github.com/thomasnordquist/mqtt-explorer/blob/080a773dbdc3872c32ed8d420a3efcb53c392ac0/.github/workflows/copilot-setup-steps.yml,file,copilot-setup-steps,,,no,,
+C017,https://github.com/davidwells/analytics/blob/691795cc2c5818b8a3222bc935b7f658635c00cc/.github/workflows/claude.yml,file,,,,yes,claude,
+C018,https://github.com/josverl/micropython-stubs/blob/85bcc359cc792b30a785bdf231554aaa22a15703/.github/workflows/quality-issue-triage.md,file,,,,no,,
+C019,https://github.com/nitrojs/nitro/blob/b282321c25b5417fbf8cb1fc52f1f18843b570c9/.github/workflows/copilot-setup-steps.yml,file,,,,no,,
+C020,https://github.com/oceanbase/oceanbase-design/blob/f6656a12ad45bdebbd0a420889ac7c534dbbd01f/.github/workflows/release-helper.yml,step,release-helper,0,Release Oceanbase Design,no,,
+C021,https://github.com/rysweet/MicrosoftHackathon2025-AgenticCoding/blob/837684660b82de1452a57a8e90a66f7675233010/.github/workflows/copilot-setup-steps.yml,file,,,,no,,
+C022,https://github.com/alibaba/TorchEasyRec/blob/f26a172a402c56dd1d88bd78747188595612c11c/.github/workflows/code_review.yml,step,review,5,RunCodeReview,yes,claude,
+C023,https://github.com/fsprojects/FSharp.Formatting/blob/e64e759e13418045324d800faa76e421af72cceb/.github/workflows/repo-assist.md,file,,,,no,,
+C024,https://github.com/jrsoftware/issrc/blob/fb73b9d2ecbcf18124eeb11e46ef835a085d308d/.github/workflows/code-review-claude-code.yml,step,claude-review,1,Run Claude Code Review,yes,claude,
+C025,https://github.com/CTeX-org/ctex-kit/blob/7132ca8c2b7062efc983616b590440f9e24acbe1/.github/workflows/release-ctan-upload.yml,step,prepare-announcement,5,Install pinned Claude Code CLI,no,,Only installation
+C026,https://github.com/MadAppGang/dingo/blob/f6d778e3a386c00722826276b4a25b590884ffc2/.github/workflows/issue-triage.yml,step,triage,10,Reply to comment with Claude Code,yes,claude,
+C027,https://github.com/microsoft/fabric-cicd/blob/f6f22a361bb4fc4b12f5e91ae633e50b4842394e/.github/workflows/ai-issue-triage.yml,step,ai-triage,2,Run AI assessment,maybe,generic_ai,
+C028,https://github.com/EleutherAI/bergson/blob/d602c119601ec526a71196f4c7ff8d5b2cce44e3/.github/workflows/claude-code-review.yml,file,,,,yes,claude,Its comment out but if it wasn't; it'd do so
+C029,https://github.com/bdougie/contributor.info/blob/c8609e1d3da59fb852380800be9b6a68698c769c/.github/workflows/claude-code-review.yml,file,,,,yes,claude,Its comment out but if it wasn't; it'd do so
+C030,https://github.com/an-lee/mixin_bot/blob/48b6d5614989779ef6a6befee780444ad2a4e186/.github/workflows/dependabot-pr-bundler.lock.yml,file,,,,yes,claude,

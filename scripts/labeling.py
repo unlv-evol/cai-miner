@@ -34,9 +34,22 @@ CONTACT = "Daniel Ogenrwot (ogenrwot@unlv.nevada.edu)"
 
 Q1_VALUES = ("yes", "no", "maybe")
 Q2_VALUES = (
-    "claude", "codex", "copilot", "gemini", "cursor", "aider", "devin", "pr_agent",
-    "coderabbit", "goose", "opencode", "openhands",
-    "generic_ai", "unknown", "other", "unclear",
+    "claude",
+    "codex",
+    "copilot",
+    "gemini",
+    "cursor",
+    "aider",
+    "devin",
+    "pr_agent",
+    "coderabbit",
+    "goose",
+    "opencode",
+    "openhands",
+    "generic_ai",
+    "unknown",
+    "other",
+    "unclear",
 )
 
 # Workbook columns: (header, CSV field or None for display-only, width).
@@ -62,8 +75,8 @@ ANSWER_FIELDS = ("q1_invocation", "q2_agent", "notes")
 
 FONT = "Arial"
 HEADER_FILL = "1F3864"
-INPUT_FILL = "FFF2CC"      # yellow: yours to fill
-DONE_FILL = "E2EFDA"       # green: Q1 answered
+INPUT_FILL = "FFF2CC"  # yellow: yours to fill
+DONE_FILL = "E2EFDA"  # green: Q1 answered
 
 
 def read_csv(path: Path) -> list[dict]:
@@ -76,7 +89,7 @@ def link_text(permalink: str) -> str:
     parts = permalink.split("/")
     try:
         blob = parts.index("blob")
-        return f"{parts[blob - 2]}/{parts[blob - 1]}: {'/'.join(parts[blob + 2:])}"
+        return f"{parts[blob - 2]}/{parts[blob - 1]}: {'/'.join(parts[blob + 2 :])}"
     except (ValueError, IndexError):
         return permalink
 
@@ -134,18 +147,32 @@ def _units_sheet(wb, title: str, columns, rows: list[dict]) -> None:
                     cell.alignment = st["wrap"]
             else:
                 value = row.get(field, "")
-                cell.value = int(value) if field == "step_index" and value.lstrip("-").isdigit() else (value or None)
+                cell.value = (
+                    int(value)
+                    if field == "step_index" and value.lstrip("-").isdigit()
+                    else (value or None)
+                )
 
     last = len(rows) + 1
     ws.freeze_panes = "B2"
     ws.auto_filter.ref = f"A1:{get_column_letter(len(columns))}{last}"
 
-    q1 = DataValidation(type="list", formula1='"' + ",".join(Q1_VALUES) + '"', allow_blank=True,
-                        showErrorMessage=True, errorTitle="Q1",
-                        error="Choose yes, no or maybe (see the Codebook tab).")
-    q2 = DataValidation(type="list", formula1='"' + ",".join(Q2_VALUES) + '"', allow_blank=True,
-                        showErrorMessage=True, errorTitle="Q2",
-                        error="Choose a value from the list (see the Codebook tab).")
+    q1 = DataValidation(
+        type="list",
+        formula1='"' + ",".join(Q1_VALUES) + '"',
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Q1",
+        error="Choose yes, no or maybe (see the Codebook tab).",
+    )
+    q2 = DataValidation(
+        type="list",
+        formula1='"' + ",".join(Q2_VALUES) + '"',
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Q2",
+        error="Choose a value from the list (see the Codebook tab).",
+    )
     q1.add(f"{q1_col}2:{q1_col}{last}")
     q2.add(f"{q2_col}2:{q2_col}{last}")
     ws.add_data_validation(q1)
@@ -192,32 +219,68 @@ def _start_sheet(wb, who: str, tabs: list[str], joint: bool) -> None:
         ws.column_dimensions[col].width = 16
     ws.sheet_view.showGridLines = False
     steps = (
-        [("base", "1. Code all 30 units of the Calibration tab together, discussing each disagreement."),
-         ("base", "2. Settle the open rule in Section 6 of the coding guide and write the decision down."),
-         ("base", "3. These units are not counted. Keep this file: it records how the rules were applied.")]
-        if joint else
-        [("base", "1. Read GHAgentCI-coding-guide.pdf (10 minutes). Keep it open while you code."),
-         ("base", "2. Take part in the joint calibration session before coding anything here."),
-         ("base", f"3. Code every row of the {' and '.join(tabs)} tab(s), on your own."),
-         ("base", f"4. Save and return this file to {CONTACT} by {DEADLINE}.")]
+        [
+            (
+                "base",
+                "1. Code all 30 units of the Calibration tab together, discussing each disagreement.",
+            ),
+            (
+                "base",
+                "2. Settle the open rule in Section 6 of the coding guide and write the decision down.",
+            ),
+            (
+                "base",
+                "3. These units are not counted. Keep this file: it records how the rules were applied.",
+            ),
+        ]
+        if joint
+        else [
+            (
+                "base",
+                "1. Read GHAgentCI-coding-guide.pdf (10 minutes). Keep it open while you code.",
+            ),
+            ("base", "2. Take part in the joint calibration session before coding anything here."),
+            ("base", f"3. Code every row of the {' and '.join(tabs)} tab(s), on your own."),
+            ("base", f"4. Save and return this file to {CONTACT} by {DEADLINE}."),
+        ]
     )
-    row = _write_block(ws, 1, [
-        ("title", "GHAgentCI validation: " + who),
-        ("base", "For each unit, open the workflow on GitHub and answer Q1 and Q2. The coding guide (PDF) has all rules."),
-        None,
-        ("h2", "Steps"), *steps,
-        None,
-        ("h2", "Rules"),
-        ("base", "Work independently: no discussion of units, and no looking at the other coder's file, until both are returned."),
-        ("base", "Code it yourself: no AI assistants or scripts. Do not look up what the detector decided."),
-        ("base", "Do not add, delete, rename or reorder columns. Sorting and filtering rows is fine."),
-        ("base", "When in doubt, choose the best answer and write a short note."),
-        None,
-        ("h2", "Legend"),
-    ], st)
-    legend = [["yellow cell", "yours to fill: Q1, Q2 and notes"],
-              ["green row", "Q1 answered"],
-              ["blue link", "opens the workflow on GitHub at the commit being judged"]]
+    row = _write_block(
+        ws,
+        1,
+        [
+            ("title", "GHAgentCI validation: " + who),
+            (
+                "base",
+                "For each unit, open the workflow on GitHub and answer Q1 and Q2. The coding guide (PDF) has all rules.",
+            ),
+            None,
+            ("h2", "Steps"),
+            *steps,
+            None,
+            ("h2", "Rules"),
+            (
+                "base",
+                "Work independently: no discussion of units, and no looking at the other coder's file, until both are returned.",
+            ),
+            (
+                "base",
+                "Code it yourself: no AI assistants or scripts. Do not look up what the detector decided.",
+            ),
+            (
+                "base",
+                "Do not add, delete, rename or reorder columns. Sorting and filtering rows is fine.",
+            ),
+            ("base", "When in doubt, choose the best answer and write a short note."),
+            None,
+            ("h2", "Legend"),
+        ],
+        st,
+    )
+    legend = [
+        ["yellow cell", "yours to fill: Q1, Q2 and notes"],
+        ["green row", "Q1 answered"],
+        ["blue link", "opens the workflow on GitHub at the commit being judged"],
+    ]
     for r, (label, meaning) in enumerate(legend, start=row):
         a = ws.cell(row=r, column=1, value=label)
         a.font = st["link"] if label.startswith("blue") else st["base"]
@@ -228,10 +291,36 @@ def _start_sheet(wb, who: str, tabs: list[str], joint: bool) -> None:
         ws.cell(row=r, column=2, value=meaning).font = st["base"]
     row += len(legend) + 1
     row = _write_block(ws, row, [("h2", "Example of a completed row (not part of the sample)")], st)
-    _table(ws, row,
-           ["unit_id", "open workflow", "scope", "job_id", "step_index", "step_name", "Q1 invocation", "Q2 agent", "notes"],
-           [["EX01", "owner/repo: .github/workflows/review.yml", "step", "review", "1", "Claude review",
-             "yes", "claude", "action runs on every PR"]], st, fills={7, 8, 9})
+    _table(
+        ws,
+        row,
+        [
+            "unit_id",
+            "open workflow",
+            "scope",
+            "job_id",
+            "step_index",
+            "step_name",
+            "Q1 invocation",
+            "Q2 agent",
+            "notes",
+        ],
+        [
+            [
+                "EX01",
+                "owner/repo: .github/workflows/review.yml",
+                "step",
+                "review",
+                "1",
+                "Claude review",
+                "yes",
+                "claude",
+                "action runs on every PR",
+            ]
+        ],
+        st,
+        fills={7, 8, 9},
+    )
 
 
 def _codebook_sheet(wb) -> None:
@@ -240,36 +329,81 @@ def _codebook_sheet(wb) -> None:
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 16
     ws.column_dimensions["B"].width = 95
-    row = _write_block(ws, 1, [
-        ("title", "Codebook (quick reference; the PDF guide is authoritative)"),
-        None,
-        ("h2", "Q1. Does this step (or, for scope = file and the Recall tab, this workflow) invoke a coding agent when the workflow runs?"),
-        ("base", "A coding agent is an LLM-based tool that acts on the repository or its activity: it reads code, diffs, issues or comments, "
-                 "and produces reviews, comments, labels, commits or pull requests."),
-    ], st)
-    row = _table(ws, row + 1, ["answer", "use when"], [
-        ["yes", "It runs such an agent: a vendor agent action, an agent CLI (claude -p, codex exec), a wrapper action that runs an agent, "
-                "copilot-setup-steps.yml, or a gh-aw workflow."],
-        ["maybe", "An LLM is called but it is unclear it acts as an agent (e.g. only summarises text), or the agent step cannot run "
-                  "(if: false, dry-run). Also: link no longer resolves (note 'link dead')."],
-        ["no", "No agent runs: only installs an agent, a key feeding tests, a name in echo/comment/docs, an unrelated tool with the "
-               "same name, or not a working workflow."],
-    ], st)
-    row = _write_block(ws, row, [
-        ("h2", "Q2. Which agent? Only when Q1 is yes or maybe; leave empty for no. Spelling must match the list."),
-    ], st)
-    _table(ws, row + 1, ["value", "use when"], [
-        ["claude, codex, copilot, gemini", "the vendor's agent, directly or through a wrapper that clearly uses it"],
-        ["cursor, aider, devin, pr_agent", "pr_agent is Qodo's PR-Agent (Codium-ai/pr-agent)"],
-        ["coderabbit, goose, opencode, openhands", ""],
-        ["generic_ai", "a third-party AI action not tied to one of the vendors above"],
-        ["unknown", "a gh-aw file that does not say which engine it uses"],
-        ["other", "a coding agent not in this list"],
-        ["unclear", "cannot be determined from the workflow"],
-    ], st)
+    row = _write_block(
+        ws,
+        1,
+        [
+            ("title", "Codebook (quick reference; the PDF guide is authoritative)"),
+            None,
+            (
+                "h2",
+                "Q1. Does this step (or, for scope = file and the Recall tab, this workflow) invoke a coding agent when the workflow runs?",
+            ),
+            (
+                "base",
+                "A coding agent is an LLM-based tool that acts on the repository or its activity: it reads code, diffs, issues or comments, "
+                "and produces reviews, comments, labels, commits or pull requests.",
+            ),
+        ],
+        st,
+    )
+    row = _table(
+        ws,
+        row + 1,
+        ["answer", "use when"],
+        [
+            [
+                "yes",
+                "It runs such an agent: a vendor agent action, an agent CLI (claude -p, codex exec), a wrapper action that runs an agent, "
+                "copilot-setup-steps.yml, or a gh-aw workflow.",
+            ],
+            [
+                "maybe",
+                "An LLM is called but it is unclear it acts as an agent (e.g. only summarises text), or the agent step cannot run "
+                "(if: false, dry-run). Also: link no longer resolves (note 'link dead').",
+            ],
+            [
+                "no",
+                "No agent runs: only installs an agent, a key feeding tests, a name in echo/comment/docs, an unrelated tool with the "
+                "same name, or not a working workflow.",
+            ],
+        ],
+        st,
+    )
+    row = _write_block(
+        ws,
+        row,
+        [
+            (
+                "h2",
+                "Q2. Which agent? Only when Q1 is yes or maybe; leave empty for no. Spelling must match the list.",
+            ),
+        ],
+        st,
+    )
+    _table(
+        ws,
+        row + 1,
+        ["value", "use when"],
+        [
+            [
+                "claude, codex, copilot, gemini",
+                "the vendor's agent, directly or through a wrapper that clearly uses it",
+            ],
+            ["cursor, aider, devin, pr_agent", "pr_agent is Qodo's PR-Agent (Codium-ai/pr-agent)"],
+            ["coderabbit, goose, opencode, openhands", ""],
+            ["generic_ai", "a third-party AI action not tied to one of the vendors above"],
+            ["unknown", "a gh-aw file that does not say which engine it uses"],
+            ["other", "a coding agent not in this list"],
+            ["unclear", "cannot be determined from the workflow"],
+        ],
+        st,
+    )
 
 
-def _workbook(path: Path, who: str, sheets: list[tuple[str, list, list[dict]]], joint: bool) -> None:
+def _workbook(
+    path: Path, who: str, sheets: list[tuple[str, list, list[dict]]], joint: bool
+) -> None:
     from openpyxl import Workbook
 
     wb = Workbook()
@@ -285,8 +419,12 @@ def build_guide(out: Path) -> Path:
     tex = shutil.which("pdflatex") or "/Library/TeX/texbin/pdflatex"
     work = GUIDE_SRC.parent
     for _ in range(2):
-        subprocess.run([tex, "-interaction=nonstopmode", "-halt-on-error", GUIDE_SRC.name],
-                       cwd=work, check=True, capture_output=True)
+        subprocess.run(
+            [tex, "-interaction=nonstopmode", "-halt-on-error", GUIDE_SRC.name],
+            cwd=work,
+            check=True,
+            capture_output=True,
+        )
     pdf = out / GUIDE_PDF
     shutil.copyfile(work / "guide.pdf", pdf)
     return pdf
@@ -302,21 +440,33 @@ def build(out: Path, source: Path) -> None:
             raise SystemExit(f"{kind}: coder A and B sheets hold different units")
         answered = sum(1 for c in "AB" for r in sheets[c] if (r.get("q1_invocation") or "").strip())
         if answered:
-            raise SystemExit(f"{kind}: sheets already hold {answered} answers; refusing to overwrite")
+            raise SystemExit(
+                f"{kind}: sheets already hold {answered} answers; refusing to overwrite"
+            )
 
     out.mkdir(parents=True, exist_ok=True)
     guide = build_guide(out)
     for coder in "AB":
         folder = out / f"coder-{coder}"
         folder.mkdir(exist_ok=True)
-        _workbook(folder / f"GHAgentCI-labeling-coder-{coder}.xlsx", f"coder {coder}",
-                  [("Precision", STEP_COLUMNS, precision[coder]),
-                   ("Recall", FILE_COLUMNS, recall[coder])], joint=False)
+        _workbook(
+            folder / f"GHAgentCI-labeling-coder-{coder}.xlsx",
+            f"coder {coder}",
+            [
+                ("Precision", STEP_COLUMNS, precision[coder]),
+                ("Recall", FILE_COLUMNS, recall[coder]),
+            ],
+            joint=False,
+        )
         shutil.copyfile(guide, folder / GUIDE_PDF)
     shared = out / "shared"
     shared.mkdir(exist_ok=True)
-    _workbook(shared / "GHAgentCI-calibration.xlsx", "calibration (both coders, together)",
-              [("Calibration", STEP_COLUMNS, calibration)], joint=True)
+    _workbook(
+        shared / "GHAgentCI-calibration.xlsx",
+        "calibration (both coders, together)",
+        [("Calibration", STEP_COLUMNS, calibration)],
+        joint=True,
+    )
     shutil.copyfile(guide, shared / GUIDE_PDF)
     guide.unlink()
     print(f"built {out}: coder-A, coder-B, shared", file=sys.stderr)
@@ -334,13 +484,22 @@ def read_answers(path: Path, tab: str) -> dict[str, dict]:
         raise SystemExit(f"{path.name}: no '{tab}' tab")
     rows = wb[tab].iter_rows(values_only=True)
     header = [str(h).strip() if h is not None else "" for h in next(rows)]
-    index = {name: header.index(name) for name in ("unit_id", "Q1 invocation", "Q2 agent", "notes")
-             if name in header}
+    index = {
+        name: header.index(name)
+        for name in ("unit_id", "Q1 invocation", "Q2 agent", "notes")
+        if name in header
+    }
     if len(index) < 4:
-        raise SystemExit(f"{path.name} [{tab}]: columns were renamed or removed; expected unit_id, "
-                         "Q1 invocation, Q2 agent, notes")
+        raise SystemExit(
+            f"{path.name} [{tab}]: columns were renamed or removed; expected unit_id, "
+            "Q1 invocation, Q2 agent, notes"
+        )
     answers = {}
     for values in rows:
+        # A workbook re-saved by a spreadsheet application can carry padding
+        # rows that read back as empty tuples, and rows shorter than the header
+        # when their trailing cells are blank: pad them rather than fail.
+        values = tuple(values) + (None,) * (len(header) - len(values))
         unit = values[index["unit_id"]]
         if unit is None:
             continue
@@ -357,7 +516,9 @@ def read_answers(path: Path, tab: str) -> dict[str, dict]:
     return answers
 
 
-def merge(csv_path: Path, answers: dict[str, dict], label: str) -> tuple[list[dict], list[str], list[str]]:
+def merge(
+    csv_path: Path, answers: dict[str, dict], label: str
+) -> tuple[list[dict], list[str], list[str]]:
     """The CSV rows with answers filled in, plus errors and warnings."""
     rows = read_csv(csv_path)
     known = {r["unit_id"] for r in rows}
@@ -365,7 +526,9 @@ def merge(csv_path: Path, answers: dict[str, dict], label: str) -> tuple[list[di
     missing = sorted(known - set(answers))
     extra = sorted(set(answers) - known)
     if missing:
-        errors.append(f"{label}: {len(missing)} unit(s) missing from the workbook, e.g. {missing[:5]}")
+        errors.append(
+            f"{label}: {len(missing)} unit(s) missing from the workbook, e.g. {missing[:5]}"
+        )
     if extra:
         errors.append(f"{label}: {len(extra)} unknown unit(s), e.g. {extra[:5]}")
     for unit, a in answers.items():
@@ -383,9 +546,14 @@ def merge(csv_path: Path, answers: dict[str, dict], label: str) -> tuple[list[di
 
 
 def import_workbook(path: Path, coder: str | None, calibration: bool, target: Path) -> int:
-    jobs = ([("Calibration", target / "calibration_sheet.csv")] if calibration else
-            [("Precision", target / f"precision_sheet_{coder}.csv"),
-             ("Recall", target / f"recall_sheet_{coder}.csv")])
+    jobs = (
+        [("Calibration", target / "calibration_sheet.csv")]
+        if calibration
+        else [
+            ("Precision", target / f"precision_sheet_{coder}.csv"),
+            ("Recall", target / f"recall_sheet_{coder}.csv"),
+        ]
+    )
     merged, errors, warnings = [], [], []
     for tab, csv_path in jobs:
         rows, e, w = merge(csv_path, read_answers(path, tab), tab)

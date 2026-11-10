@@ -14,13 +14,13 @@
 #
 # Environment:
 #   CAP=64k         blob size cap for the partial clone (see BENCHMARKS.md)
-#   CONFIG=...      detector catalogue (default: config/catalogue.toml, the frozen
+#   CONFIG=...      detector catalogue (default: src/cai_miner/catalogues/catalogue.toml, the frozen
 #                   merge of default.toml and marketplace.toml)
 #   TIMEOUT=900     per-repository seconds before giving up
 #   WORK=...        parent directory for clones (default: $TMPDIR)
 #   CONTENT=...     content store, one file per distinct workflow revision of
 #                   an emitted history (default: <out-dir>/content)
-#   AWE_ARGS=...    extra arguments for awe, e.g. AWE_ARGS=--keep-all for the
+#   MINER_ARGS=...  extra arguments for cai-miner, e.g. MINER_ARGS=--keep-all for the
 #                   recall subset of validation/PLAN.md
 #
 # Each clone is deleted as soon as its repository has been extracted. Clones
@@ -35,10 +35,10 @@ JOBS="${3:-8}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CAP="${CAP:-64k}"
-CONFIG="${CONFIG:-$ROOT/config/catalogue.toml}"
+CONFIG="${CONFIG:-$ROOT/src/cai_miner/catalogues/catalogue.toml}"
 TIMEOUT="${TIMEOUT:-900}"
 CONTENT="${CONTENT:-$OUT/content}"
-AWE_ARGS="${AWE_ARGS:-}"
+MINER_ARGS="${MINER_ARGS:-}"
 
 # GNU timeout; macOS ships without it (`brew install coreutils` -> gtimeout).
 # Without one, every clone "fails" instantly and is logged as clone-failed.
@@ -54,7 +54,7 @@ fi
 # A private directory under WORK, so cleanup can never touch anything else.
 WORK_PARENT="${WORK:-${TMPDIR:-/tmp}}"
 mkdir -p "$WORK_PARENT"
-WORK="$(mktemp -d "${WORK_PARENT%/}/awe-mine.XXXXXX")"
+WORK="$(mktemp -d "${WORK_PARENT%/}/cai-miner.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 
 # On interrupt, stop the workers before deleting their clones; otherwise a
@@ -74,7 +74,7 @@ on_signal() {
 trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
 
-export ROOT CAP CONFIG TIMEOUT TIMEOUT_BIN WORK OUT CONTENT AWE_ARGS
+export ROOT CAP CONFIG TIMEOUT TIMEOUT_BIN WORK OUT CONTENT MINER_ARGS
 export PYTHONPATH="$ROOT/src:${PYTHONPATH:-}"
 # Never wait on a credential prompt: a deleted or private repository answers a
 # clone with an authentication challenge, and without a terminal git would sit
@@ -88,7 +88,7 @@ mkdir -p "$OUT/parts" "$CONTENT"
 {
     echo "== $(date -u '+%Y-%m-%dT%H:%M:%SZ') on $(hostname)"
     echo "list:     $LIST ($(grep -cve '^\s*$' -e '^\s*#' "$LIST") repositories)"
-    echo "jobs:     $JOBS   cap: $CAP   timeout: ${TIMEOUT}s   awe args: ${AWE_ARGS:-none}"
+    echo "jobs:     $JOBS   cap: $CAP   timeout: ${TIMEOUT}s   cai-miner args: ${MINER_ARGS:-none}"
     echo "config:   $CONFIG"
     for f in "$(dirname "$CONFIG")"/*.toml "$LIST"; do
         printf '  sha256  %s  %s\n' \
@@ -109,9 +109,9 @@ export DONE
 
 # Repositories the catalogue records but never mines ([exclude] in the config).
 # Checked before cloning: `github/gh-aw` alone holds 235k workflow blobs, and
-# cloning it only for awe to mark it excluded would pin a worker for nothing.
+# cloning it only for cai-miner to mark it excluded would pin a worker for nothing.
 EXCLUDED="$OUT/.excluded"
-python3 -c 'import sys; from awe.config import load_config; print("\n".join(load_config(sys.argv[1]).exclude))' \
+python3 -c 'import sys; from cai_miner.config import load_config; print("\n".join(load_config(sys.argv[1]).exclude))' \
     "$CONFIG" > "$EXCLUDED" || { echo "mine.sh: cannot read $CONFIG" >&2; exit 2; }
 export EXCLUDED
 
@@ -128,7 +128,7 @@ mine_one() {
 
     # Recorded with status `excluded`, so the denominator still counts it.
     if grep -qixF "$slug" "$EXCLUDED" 2>/dev/null; then
-        python3 -m awe.cli --repository "$slug" "$clone" \
+        python3 -m cai_miner --repository "$slug" "$clone" \
             -o "$part" -c "$CONFIG" --quiet 2>>"$OUT/errors.log"
         return 0
     fi
@@ -147,8 +147,8 @@ mine_one() {
         return 0
     fi
 
-    if ! "$TIMEOUT_BIN" --foreground -k 30 "$TIMEOUT" python3 -m awe.cli --repository "$slug" "$clone" \
-            -o "$part" -c "$CONFIG" --content-dir "$CONTENT" $AWE_ARGS \
+    if ! "$TIMEOUT_BIN" --foreground -k 30 "$TIMEOUT" python3 -m cai_miner --repository "$slug" "$clone" \
+            -o "$part" -c "$CONFIG" --content-dir "$CONTENT" $MINER_ARGS \
             --quiet 2>>"$OUT/errors.log"; then
         echo "$slug	extract-failed" >> "$OUT/failures.tsv"
     fi
@@ -193,7 +193,7 @@ done
 if [ -s "$OUT/failures.tsv" ]; then
     python3 - "$OUT/repositories.csv" "$OUT/failures.tsv" <<'PY'
 import csv, sys
-from awe.cli import SUMMARY_FIELDS
+from cai_miner.cli import SUMMARY_FIELDS
 summary, failures = sys.argv[1], sys.argv[2]
 try:
     with open(summary, newline="") as handle:

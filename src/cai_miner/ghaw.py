@@ -5,7 +5,7 @@ authored as Markdown in `.github/workflows/` and compiled by `gh aw compile`
 into an ordinary `.github/workflows/<name>.lock.yml`. Both halves are checked
 in, so both are visible in git history.
 
-This is a different detection problem from the rest of `awe`. Elsewhere we
+This is a different detection problem from the rest of cai-miner. Elsewhere we
 infer that a step invokes an agent by pattern-matching a catalogue against
 free-form YAML. Here the compiler stamps a machine-readable manifest into the
 head of every file it generates, so detection is exact and the payload is far
@@ -104,7 +104,7 @@ def _json_after(line: str, prefix: str) -> dict | None:
         return None
 
 
-def _flatten(value) -> tuple[str, ...]:
+def _flatten(value: object) -> tuple[str, ...]:
     """Keys of a mapping, items of a sequence, or the value itself."""
     if value is None or value is False:
         return ()
@@ -247,15 +247,11 @@ def _parse_source(content: str) -> GhawFacts | None:
         safe_outputs=_flatten(front.get("safe-outputs")),
         imports=_flatten(front.get("imports")),
         sandboxed=front.get("sandbox") is not None,
-        network=(
-            "custom" if isinstance(network, dict) else (str(network) if network else None)
-        ),
+        network=("custom" if isinstance(network, dict) else (str(network) if network else None)),
         permissions=" ".join(_flatten(front.get("permissions"))) or None,
         n_evals=len(_flatten(front.get("evals"))),
         timeout_minutes=(
-            front.get("timeout-minutes")
-            if isinstance(front.get("timeout-minutes"), int)
-            else None
+            front.get("timeout-minutes") if isinstance(front.get("timeout-minutes"), int) else None
         ),
         max_turns=front.get("max-turns") if isinstance(front.get("max-turns"), int) else None,
         frontmatter_keys=tuple(str(k) for k in front),

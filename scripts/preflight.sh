@@ -47,9 +47,9 @@ if command -v python3 > /dev/null; then
         fail "python3 $(python3 -V 2>&1) (3.11+ required: tomllib)"
     fi
     python3 -c 'import yaml' 2>/dev/null && pass "PyYAML" || fail "PyYAML missing (pip install -e .)"
-    where="$(python3 -c 'import awe, os; print(os.path.dirname(awe.__file__))' 2>/dev/null)"
-    [ "$where" = "$ROOT/src/awe" ] && pass "awe imports from $where" \
-        || fail "awe imports from '${where:-nowhere}', expected $ROOT/src/awe"
+    where="$(python3 -c 'import cai_miner, os; print(os.path.dirname(cai_miner.__file__))' 2>/dev/null)"
+    [ "$where" = "$ROOT/src/cai_miner" ] && pass "cai_miner imports from $where" \
+        || fail "cai_miner imports from '${where:-nowhere}', expected $ROOT/src/cai_miner"
 else
     fail "python3 not found"
 fi
@@ -61,11 +61,11 @@ if [ -s "$LIST" ]; then
 else
     fail "repository list missing: $LIST"
 fi
-if python3 -c 'import sys; from awe.config import load_config; c = load_config(sys.argv[1]); print(len(c.agents))' \
-        "$ROOT/config/catalogue.toml" > /dev/null 2>&1; then
+if python3 -c 'import sys; from cai_miner.config import load_config; c = load_config(sys.argv[1]); print(len(c.agents))' \
+        "$ROOT/src/cai_miner/catalogues/catalogue.toml" > /dev/null 2>&1; then
     pass "catalogue loads: $(cd "$ROOT/config" && (sha256sum catalogue.toml 2>/dev/null || shasum -a 256 catalogue.toml) | cut -c1-16)..."
 else
-    fail "config/catalogue.toml does not load"
+    fail "src/cai_miner/catalogues/catalogue.toml does not load"
 fi
 
 echo "== disks"
@@ -90,7 +90,7 @@ nofile="$(ulimit -n)"
 echo "  INFO  cores: $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo ?)"
 
 echo "== network and git behaviour"
-SCRATCH="$(mktemp -d "${WORK_DIR%/}/awe-preflight.XXXXXX")"
+SCRATCH="$(mktemp -d "${WORK_DIR%/}/cai-miner-preflight.XXXXXX")"
 trap 'chmod -R u+w "$SCRATCH" 2>/dev/null; rm -rf "$SCRATCH"' EXIT
 if git ls-remote https://github.com/octocat/Hello-World.git HEAD > /dev/null 2>&1; then
     pass "github.com reachable over https"
@@ -113,12 +113,12 @@ else
 fi
 
 echo "== smoke run (3 repositories)"
-printf 'octocat/Hello-World\ngithub/gh-aw\nawe-preflight-no-such-owner/no-such-repo\n' > "$SCRATCH/list.txt"
+printf 'octocat/Hello-World\ngithub/gh-aw\ncai-miner-preflight-no-such-owner/no-such-repo\n' > "$SCRATCH/list.txt"
 if WORK="$SCRATCH/work" TIMEOUT=120 "$ROOT/scripts/mine.sh" "$SCRATCH/list.txt" "$SCRATCH/out" 3 \
         > "$SCRATCH/mine.log" 2>&1; then
     # csv writes \r\n line endings; drop the \r before comparing.
     got="$(tr -d '\r' < "$SCRATCH/out/repositories.csv" | cut -d, -f1,13 | tail -n +2 | sort | tr '\n' ' ')"
-    want="awe-preflight-no-such-owner/no-such-repo,clone-failed github/gh-aw,excluded octocat/Hello-World,ok "
+    want="cai-miner-preflight-no-such-owner/no-such-repo,clone-failed github/gh-aw,excluded octocat/Hello-World,ok "
     [ "$got" = "$want" ] && pass "statuses ok / excluded / clone-failed as expected" \
         || fail "unexpected statuses: $got (log: $SCRATCH/mine.log)"
     [ -f "$SCRATCH/out/RUN.txt" ] && pass "run provenance written (RUN.txt)" || fail "RUN.txt not written"

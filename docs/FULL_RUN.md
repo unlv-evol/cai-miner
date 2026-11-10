@@ -8,27 +8,30 @@ with 2.6% of repositories agentic.
 
 ## 1. Get the project onto the server
 
-The project is not under version control yet. Either:
+Clone the repository, which pins the exact code the dataset comes from by
+commit hash (recorded in `RUN.txt`):
 
 ```bash
-# a) copy it as is (from the laptop)
-rsync -av --exclude out/ --exclude '__pycache__/' --exclude '*.egg-info/' \
-      --exclude 'manuscripts/msr/main.*' --exclude '.pytest_cache/' \
-      ~/Documents/Projects/awe/ server:awe/
+git clone https://github.com/unlv-evol/cai-miner.git ~/cai-miner
 ```
 
-or b) put it in a (private) GitHub repository and clone it there. The paper
-needs a repository URL anyway, and a commit hash in `RUN.txt` would pin the
-exact code the dataset came from.
-
-Required on the server: **bash 4+, git 2.30+ (2.45+ preferred), GNU coreutils,
-Python 3.11+**. All are standard on a current Linux distribution.
+or copy an uncommitted working tree from the laptop:
 
 ```bash
-cd ~/awe
-python3 -m venv .venv && . .venv/bin/activate
-pip install -e .            # PyYAML and the awe package
-pip install pytest && PYTHONPATH=src python -m pytest tests -q    # expect all to pass
+rsync -av --exclude out/ --exclude .venv/ --exclude '__pycache__/' \
+      --exclude 'manuscripts/msr/main.*' --exclude '.pytest_cache/' \
+      ~/path/to/cai-miner/ server:cai-miner/
+```
+
+Required on the server: **bash 4+, git 2.30+ (2.45+ preferred), GNU coreutils
+and [uv](https://docs.astral.sh/uv/)** (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+uv installs the pinned Python itself.
+
+```bash
+cd ~/cai-miner
+uv sync --locked --all-groups   # .venv with cai-miner (editable) and the locked tools
+. .venv/bin/activate            # mine.sh and preflight.sh call `python3 -m cai_miner`
+uv run pytest -q                # expect all to pass
 ```
 
 ## 2. Preflight
@@ -36,26 +39,26 @@ pip install pytest && PYTHONPATH=src python -m pytest tests -q    # expect all t
 Put the clones on a real disk, not `/tmp` if that is a tmpfs:
 
 ```bash
-mkdir -p /data/awe-work
-./scripts/preflight.sh out/full /data/awe-work
+mkdir -p /data/cai-miner-work
+./scripts/preflight.sh out/full /data/cai-miner-work
 ```
 
 Every line must be PASS (or an understood WARN) and the last line
-`preflight: ready`. It checks the tools, that `awe` imports from this checkout,
+`preflight: ready`. It checks the tools, that `cai_miner` imports from this checkout,
 the repository list and catalogue, free disk, the work directory's filesystem,
 that GitHub is reachable, that git honours `GIT_NO_LAZY_FETCH`, and a
 three-repository smoke run (`ok` / `excluded` / `clone-failed`).
 
 ## 3. Launch
 
-Do not edit anything under `config/` from here on: the catalogue is frozen, and
+Do not edit anything under `src/cai_miner/catalogues/` from here on: the catalogue is frozen, and
 the validation sample only holds for the patterns that produced the data.
 `RUN.txt` records its checksums.
 
 ```bash
-tmux new -s awe        # survives a dropped SSH session; reattach: tmux attach -t awe
+tmux new -s cai-miner        # survives a dropped SSH session; reattach: tmux attach -t cai-miner
 . .venv/bin/activate
-WORK=/data/awe-work ./scripts/mine.sh data/seart/repos-2026-10-03.txt out/full 32 \
+WORK=/data/cai-miner-work ./scripts/mine.sh data/seart/repos-2026-10-03.txt out/full 32 \
     2>&1 | tee -a out/full.log
 ```
 
@@ -70,8 +73,8 @@ Ctrl-C, lower the count, and relaunch; the run resumes.
 ```bash
 find out/full/parts -name repositories.csv -exec cat {} + | grep -vc '^repository,'   # repositories done
 cut -f2 out/full/failures.tsv | sort | uniq -c                     # failures by kind
-tail out/full/errors.log                                           # awe errors
-du -sh /data/awe-work out/full                                     # disk
+tail out/full/errors.log                                           # cai-miner errors
+du -sh /data/cai-miner-work out/full                                     # disk
 ```
 
 The work directory should stay at a few hundred MB: each clone is deleted
@@ -91,7 +94,7 @@ nothing to backfill:
 
 ```bash
 grep -P '\textract-failed$|\tclone-failed$' out/full/failures.tsv | cut -f1 | sort -u > out/retry.txt
-CAP=1m TIMEOUT=3600 WORK=/data/awe-work ./scripts/mine.sh out/retry.txt out/full 8
+CAP=1m TIMEOUT=3600 WORK=/data/cai-miner-work ./scripts/mine.sh out/retry.txt out/full 8
 ```
 
 Same output directory, so the results merge in. Whatever still fails keeps a
@@ -110,16 +113,16 @@ names = [l.strip() for l in open("data/seart/repos-2026-10-03.txt") if l.strip()
 random.seed(20261017)
 open("out/recall.txt", "w").write("\n".join(random.sample(names, 1000)) + "\n")
 EOF
-AWE_ARGS=--keep-all WORK=/data/awe-work ./scripts/mine.sh out/recall.txt out/recall 16
+MINER_ARGS=--keep-all WORK=/data/cai-miner-work ./scripts/mine.sh out/recall.txt out/recall 16
 ```
 
 ## 8. Bring it back
 
 ```bash
 # from the laptop
-rsync -av server:awe/out/full/ ~/Documents/Projects/awe/out/full/ \
+rsync -av server:cai-miner/out/full/ ~/path/to/cai-miner/out/full/ \
       --exclude parts/
-rsync -av server:awe/out/recall/ ~/Documents/Projects/awe/out/recall/ --exclude parts/
+rsync -av server:cai-miner/out/recall/ ~/path/to/cai-miner/out/recall/ --exclude parts/
 ```
 
 Keep `out/full/parts/` on the server until the run is final; it is what resume

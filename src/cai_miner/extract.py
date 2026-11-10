@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -73,10 +74,10 @@ def _store(content_path: Path, text: str) -> None:
         return
     temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
     temporary.write_text(text, encoding="utf-8")
-    os.replace(temporary, target)
+    temporary.replace(target)
 
 
-def _joined(values) -> str:
+def _joined(values: Iterable[str]) -> str:
     return "|".join(values)
 
 
@@ -201,9 +202,7 @@ def extract_repository(
 
     summary.n_commits = commit_count(repo, rev)
 
-    revisions = list(
-        iter_file_revisions(repo, config.pathspecs, rev=rev, since=since)
-    )
+    revisions = list(iter_file_revisions(repo, config.pathspecs, rev=rev, since=since))
     if not revisions:
         return result
 
@@ -276,9 +275,7 @@ def extract_repository(
         # blobs are needed is only known after classification, hence a second,
         # small `cat-file` pass rather than writing during the first.
         needed = [
-            r.file_hash
-            for r in revisions
-            if r.file_hash and (keep_all or r.uid in agentic_uids)
+            r.file_hash for r in revisions if r.file_hash and (keep_all or r.uid in agentic_uids)
         ]
         for _blob, text in iter_blobs(repo, needed):
             _store(content_path, text)
@@ -289,20 +286,18 @@ def extract_repository(
             continue
 
         facts = facts_for(revision)
-        content_sha = content_shas.get(revision.file_hash) if revision.file_hash else None
+        revision_sha = content_shas.get(revision.file_hash) if revision.file_hash else None
         gated = gated_cache.get(revision.file_hash, False) if revision.file_hash else False
 
         result.revisions.append(
-            _revision_row(repository, revision, facts, content_sha, gated, include_weak)
+            _revision_row(repository, revision, facts, revision_sha, gated, include_weak)
         )
 
         if facts is None or not facts.is_agentic(include_weak):
             continue
 
         if facts.ghaw is not None:
-            result.manifests.append(
-                _manifest_row(repository, revision, facts.ghaw, content_sha)
-            )
+            result.manifests.append(_manifest_row(repository, revision, facts.ghaw, content_sha))
 
         summary.n_agentic_revisions += 1
         date = revision.commit_date
@@ -327,9 +322,7 @@ def extract_repository(
                     "agent": item.agent,
                     "scope": "step" if item.step_index is not None else "file",
                     "evidence_kind": item.kind,
-                    "evidence_kinds": "|".join(
-                        dict.fromkeys(m.kind for m in members)
-                    ),
+                    "evidence_kinds": "|".join(dict.fromkeys(m.kind for m in members)),
                     "n_evidence": len(members),
                     "pattern": item.pattern,
                     "job_id": item.job_id,

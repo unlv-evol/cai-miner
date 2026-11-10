@@ -1,0 +1,188 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\setlist{itemsep=2pt,topsep=3pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\newcommand{\val}[1]{\texttt{#1}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{GHAgentCI validation: coding guide}
+\author{Precision and recall labelling, MSR 2027}
+\date{Version 2, 29 October 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section*{In one paragraph}
+
+\textsf{awe} scans GitHub Actions workflow files and reports the places where
+it believes a \emph{coding agent} (Claude, Codex, Copilot, \dots) is started by
+CI. You will check a sample of those reports, and a sample of workflows it did
+\emph{not} flag, by opening each workflow on GitHub and answering two
+questions. Your answers measure how often \textsf{awe} is right (precision) and
+what it misses (recall). Two coders answer independently; agreement between you
+is part of the result.
+
+\section*{1. What you received}
+
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{File} & \textbf{What it is} \\
+\midrule
+\val{GHAgentCI-labeling-coder-X.xlsx} & Your workbook. Tabs: \emph{Start here}, \emph{Codebook} (quick reference), \emph{Precision} (576 units), \emph{Recall} (200 units). Only yellow cells are yours to fill. \\
+\val{GHAgentCI-coding-guide.pdf} & This guide. \\
+\val{GHAgentCI-calibration.xlsx} & (shared folder) 30 practice units, coded \emph{together} in the calibration session. Not counted. \\
+\bottomrule
+\end{tabularx}
+
+\section*{2. Steps and timing}
+
+\begin{enumerate}
+\item \textbf{Calibration session (together, about 1 hour).} Code the 30 units of
+\val{GHAgentCI-calibration.xlsx} jointly, discuss every disagreement, and settle
+the open rule in Section~6. This guide is updated afterwards if a rule changes.
+\item \textbf{Precision tab, alone (about 10 hours).} 576 units.
+\item \textbf{Recall tab, alone (about 3 hours).} 200 units.
+\item \textbf{Return your workbook by 3 November 2026}, unchanged in structure, to
+Daniel Ogenrwot. Disagreements are then resolved together on 4 November.
+\end{enumerate}
+
+At about one minute per unit, that is roughly 13 hours of coding: plan for about
+two and a half hours a day until 3 November. Save often.
+
+\section*{3. Rules}
+
+\begin{itemize}
+\item \textbf{Work independently.} Do not discuss units with the other coder,
+and do not look at their workbook, until both are returned. Ask questions about
+the \emph{guide} to Daniel instead.
+\item \textbf{Code it yourself.} Do not use AI assistants or scripts to answer;
+the point is a human judgement.
+\item \textbf{Judge the workflow, not the detector.} The workbook deliberately
+does not show what \textsf{awe} decided. Do not look it up.
+\item \textbf{Do not add, delete, rename or reorder columns.} Sorting or
+filtering rows is fine; every answer is matched by \val{unit\_id}.
+\item \textbf{When in doubt, write a short note} in the \val{notes} column. Notes
+are read during adjudication and cost you nothing.
+\end{itemize}
+
+\section*{4. How to look at a unit}
+
+Click the link in the \val{open workflow} column. It opens the workflow file on
+GitHub \emph{at the commit being judged}, not today's version.
+
+\begin{itemize}
+\item \val{scope = step}: judge the step identified by \val{job\_id} and
+\val{step\_index}. Steps are counted from \val{0} within their job: index
+\val{0} is the first entry under that job's \val{steps:}. \val{step\_name}, when
+present, is the step's \val{name:}. An index of \val{-1} means the job itself
+calls another workflow (\val{jobs.<job>.uses:}); judge that call.
+\item \val{scope = file}: judge the workflow as a whole. This is used when the
+evidence concerns the entire file: a reserved file name, a credential set for
+the whole workflow, or a GitHub Agentic Workflows (gh-aw) file.
+\item \textbf{Recall tab:} units have no step. Judge the whole file: does it
+invoke a coding agent \emph{anywhere}?
+\item If a link no longer resolves (repository deleted or made private), answer
+\val{maybe} for Q1 and write \val{link dead} in \val{notes}.
+\end{itemize}
+
+\section*{5. Q1 --- Does this step (or file) invoke a coding agent when the workflow runs?}
+
+A \emph{coding agent} is an LLM-based tool that acts on the repository or its
+activity: it reads code, diffs, issues or comments, and produces reviews,
+comments, labels, commits or pull requests.
+
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Answer} & \textbf{Use when} \\
+\midrule
+\val{yes} & The step (or file) runs such an agent when the workflow executes. \\
+\val{maybe} & An LLM is called but it is unclear that it acts as an agent, or the agent step cannot actually run (disabled, dry-run only). \\
+\val{no} & No agent runs. The match is incidental. \\
+\bottomrule
+\end{tabularx}
+
+\subsection*{Decision rules for common cases}
+
+\begin{tabularx}{\linewidth}{@{}L l@{}}
+\toprule
+\textbf{Case} & \textbf{Q1} \\
+\midrule
+Step uses a vendor's agent action, e.g.\ \val{anthropics/claude-code-action}, \val{openai/codex-action}, \val{google-github-actions/run-gemini-cli} & \val{yes} \\
+Shell step runs an agent CLI, e.g.\ \val{claude -p "\dots"}, \val{codex exec}, \val{gemini -p}, \val{aider -{}-message} & \val{yes} \\
+A third-party action that wraps an agent (e.g.\ an "AI PR reviewer" calling Claude or GPT on the diff and posting a review) & \val{yes} \\
+File \val{.github/workflows/copilot-setup-steps.yml} (prepares the Copilot coding agent's environment) & \val{yes} \\
+gh-aw file: a compiled \val{*.lock.yml} with a "generated by gh-aw" header, or its Markdown source with gh-aw frontmatter & \val{yes} \\
+Agent step guarded by \val{if: false}, or a mode that only prints what it would do & \val{maybe} \\
+Single LLM call that only summarises or formats text (release notes, changelog), not acting on code & \val{maybe} \\
+Step only \emph{installs} an agent (\val{npm i -g @openai/codex}) and nothing in that step runs it & \val{no} \\
+An API key such as \val{ANTHROPIC\_API\_KEY} feeds a test suite or an application, not an agent & \val{no} \\
+The agent's name appears only in an \val{echo}, a comment, documentation, or a file path & \val{no} \\
+An unrelated tool that shares an agent's name & \val{no} \\
+File is not a working workflow (e.g.\ ordinary Markdown in \val{.github/workflows/}) & \val{no} \\
+Invalid YAML: judge what the author evidently intended the step to do & as above \\
+\bottomrule
+\end{tabularx}
+
+\section*{6. Settled at calibration}
+
+\textbf{Open until the calibration session:} a step that only calls a generic
+LLM inference action, such as \val{actions/ai-inference}, to summarise or
+classify an issue. Is that \val{yes} or \val{maybe}?
+
+\medskip
+Decision: \rule{0.6\linewidth}{0.4pt}
+
+\section*{7. Q2 --- Which agent is it?}
+
+Answer Q2 only when Q1 is \val{yes} or \val{maybe}; leave it empty for \val{no}.
+Pick one value from the dropdown. Spelling matters: answers are compared
+literally.
+
+\begin{tabularx}{\linewidth}{@{}l L@{}}
+\toprule
+\textbf{Value} & \textbf{Use when} \\
+\midrule
+\val{claude} \val{codex} \val{copilot} \val{gemini} & The vendor's agent, directly or through a wrapper action that clearly uses it. \\
+\val{cursor} \val{aider} \val{devin} \val{pr\_agent} & \val{pr\_agent} is Qodo's PR-Agent (\val{Codium-ai/pr-agent}). \\
+\val{coderabbit} \val{goose} \val{opencode} \val{openhands} & \\
+\val{generic\_ai} & A third-party AI action not tied to one of the vendors above. \\
+\val{unknown} & A gh-aw file that does not say which engine it uses. \\
+\val{other} & A coding agent not in this list. \\
+\val{unclear} & Cannot be determined from the workflow. \\
+\bottomrule
+\end{tabularx}
+
+For gh-aw files, the engine is the \val{engine:} key of the Markdown source, or
+the \val{agent\_id} in the lock file's \val{gh-aw-metadata} header; if neither
+is present, answer \val{unknown}.
+
+\section*{8. Worked examples}
+
+\begin{tabularx}{\linewidth}{@{}l l L l l@{}}
+\toprule
+\textbf{scope} & \textbf{job / step} & \textbf{What you see} & \textbf{Q1} & \textbf{Q2} \\
+\midrule
+step & \val{review} / 1 & \val{uses: anthropics/claude-code-action@v1} with a review prompt & \val{yes} & \val{claude} \\
+step & \val{test} / 3 & \val{run: pytest}, with \val{OPENAI\_API\_KEY} in \val{env:} & \val{no} & \\
+file & -- & \val{copilot-setup-steps.yml} installing project dependencies & \val{yes} & \val{copilot} \\
+step & \val{triage} / 0 & \val{run: echo "ask @claude for help"} & \val{no} & \\
+file & -- & \val{issue-triage.lock.yml} whose header names engine \val{codex} & \val{yes} & \val{codex} \\
+\bottomrule
+\end{tabularx}
+
+\section*{9. Questions}
+
+Ask Daniel Ogenrwot (\href{mailto:ogenrwot@unlv.nevada.edu}{ogenrwot@unlv.nevada.edu}).
+Questions about a specific unit go in its \val{notes} instead, so that they do not
+influence the other coder.
+
+\end{document}

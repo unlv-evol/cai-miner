@@ -100,7 +100,7 @@ Reproduce with `scripts/benchmark_prefetch.py`.
 ## Dry run: 500 repositories from the SEART frame
 
 Seeded random 500 from `data/seart/repos-2026-10-03.txt` (seed 20261003),
-16 workers, `CAP=64k`, frozen `config/catalogue.toml`, one 8-core Mac, 2026-10-03:
+16 workers, `CAP=64k`, frozen `catalogue.toml`, one 8-core Mac, 2026-10-03:
 
 * 500 mined, **0 failures**, 0 missing blobs, every repository >= 300 commits
 * 499 finished in about 8 minutes (about 1 s of wall time per repository); the

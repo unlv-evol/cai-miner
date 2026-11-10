@@ -164,11 +164,7 @@ def allocate(
     alloc = {s: min(floor, capacity.get(s, 0)) for s in population}
     remaining = total - sum(alloc[s] for s in EXTRA_STRATA if s in alloc)
     while remaining > 0:
-        open_strata = [
-            s
-            for s in EXTRA_STRATA
-            if s in population and alloc[s] < capacity.get(s, 0)
-        ]
+        open_strata = [s for s in EXTRA_STRATA if s in population and alloc[s] < capacity.get(s, 0)]
         if not open_strata:
             break
         weight = sum(population[s] for s in open_strata)
@@ -216,7 +212,9 @@ def allocate_proportional(
     alloc = dict(fixed)
     floors = {s: int(v) for s, v in shares.items()}
     alloc.update(floors)
-    for s in sorted(shares, key=lambda s: shares[s] - floors[s], reverse=True)[: left - sum(floors.values())]:
+    for s in sorted(shares, key=lambda s: shares[s] - floors[s], reverse=True)[
+        : left - sum(floors.values())
+    ]:
         alloc[s] += 1
     return {s: min(n, capacity.get(s, n)) for s, n in alloc.items()}
 
@@ -301,9 +299,7 @@ def sample_precision(
     gated: dict[tuple, str] = {}
     if revisions:
         for r in revisions:
-            gated[(r["repository"], r["commit_hash"], r["file_path"])] = r.get(
-                "actor_gated", ""
-            )
+            gated[(r["repository"], r["commit_hash"], r["file_path"])] = r.get("actor_gated", "")
 
     sample: list[dict] = []
     for s in STRATA:
@@ -316,9 +312,7 @@ def sample_precision(
     rng.shuffle(sample)
     for number, unit in enumerate(sample, start=1):
         unit["unit_id"] = f"V{number:04d}"
-        unit["permalink"] = permalink(
-            unit["repository"], unit["commit_hash"], unit["file_path"]
-        )
+        unit["permalink"] = permalink(unit["repository"], unit["commit_hash"], unit["file_path"])
         unit["actor_gated"] = gated.get(
             (unit["repository"], unit["commit_hash"], unit["file_path"]), ""
         )
@@ -364,7 +358,7 @@ def sample_calibration(
 
     sample: list[dict] = []
     used: set[str] = set()
-    cursors = {s: 0 for s in by_stratum}
+    cursors = dict.fromkeys(by_stratum, 0)
     while len(sample) < n:
         progressed = False
         for s in STRATA:
@@ -385,18 +379,35 @@ def sample_calibration(
     rng.shuffle(sample)
     for number, unit in enumerate(sample, start=1):
         unit["unit_id"] = f"C{number:03d}"
-        unit["permalink"] = permalink(
-            unit["repository"], unit["commit_hash"], unit["file_path"]
-        )
+        unit["permalink"] = permalink(unit["repository"], unit["commit_hash"], unit["file_path"])
     return sample
 
 
 PRECISION_SAMPLE_FIELDS = [
-    "unit_id", "stratum", "repository", "commit_hash", "commit_date", "file_path",
-    "permalink", "scope", "job_id", "step_index", "step_name", "agent",
-    "evidence_kind", "evidence_kinds", "pattern", "action", "action_version",
-    "triggers", "tasks", "actor_gated", "parse_ok", "content_sha256",
-    "n_rows", "n_repositories",
+    "unit_id",
+    "stratum",
+    "repository",
+    "commit_hash",
+    "commit_date",
+    "file_path",
+    "permalink",
+    "scope",
+    "job_id",
+    "step_index",
+    "step_name",
+    "agent",
+    "evidence_kind",
+    "evidence_kinds",
+    "pattern",
+    "action",
+    "action_version",
+    "triggers",
+    "tasks",
+    "actor_gated",
+    "parse_ok",
+    "content_sha256",
+    "n_rows",
+    "n_repositories",
 ]
 # What a coder needs to find the invocation, and nothing the detector decided.
 PRECISION_SHEET_FIELDS = ["unit_id", "permalink", "scope", "job_id", "step_index", "step_name"]
@@ -423,9 +434,7 @@ def sample_recall(
     rng = random.Random(seed)
     pattern = re.compile(keywords, re.IGNORECASE)
 
-    agentic_uids = {
-        (r["repository"], r["uid"]) for r in revisions if is_true(r.get("agentic"))
-    }
+    agentic_uids = {(r["repository"], r["uid"]) for r in revisions if is_true(r.get("agentic"))}
     latest: dict[tuple, dict] = {}
     for r in revisions:
         key = (r["repository"], r["uid"])
@@ -454,8 +463,17 @@ def sample_recall(
 
 
 RECALL_SAMPLE_FIELDS = [
-    "unit_id", "repository", "uid", "commit_hash", "commit_date", "file_path",
-    "permalink", "content_sha256", "keyword_hits", "agents", "parse_ok",
+    "unit_id",
+    "repository",
+    "uid",
+    "commit_hash",
+    "commit_date",
+    "file_path",
+    "permalink",
+    "content_sha256",
+    "keyword_hits",
+    "agents",
+    "parse_ok",
 ]
 RECALL_SHEET_FIELDS = ["unit_id", "permalink"]
 
@@ -473,12 +491,25 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="mode", required=True)
 
-    p = sub.add_parser("precision", help="stratified sample of distinct invocations")
+    # The defaults reproduce the first draw of 2026-10-04 (664 named-agent units,
+    # +-5% at 99%, floors of 96), which `subsample` then reduced to the 384 units
+    # coded (+-5% at 95%; validation/PLAN.md, "Sample size"). Keep them as they
+    # are: the coded sample is a subset of that draw and is only reproducible
+    # through it.
+    p = sub.add_parser(
+        "precision",
+        help="stratified sample of distinct invocations (the first draw; see `subsample`)",
+    )
     p.add_argument("steps", help="steps.csv (or .csv.gz) from the full run")
     p.add_argument("--revisions", help="revisions.csv, to attach actor_gated for Q4")
-    p.add_argument("--total", type=int, default=664,
-                   help="sample size of the named-agent strata, which carry the overall "
-                        "precision figure; weak-only and generic get --floor each on top")
+    p.add_argument(
+        "--total",
+        type=int,
+        default=664,
+        help="sample size of the named-agent strata, which carry the overall "
+        "precision figure; weak-only and generic get --floor each on top. "
+        "664 reproduces the first draw; `subsample` reduces it to 384",
+    )
     p.add_argument("--floor", type=int, default=96, help="minimum units per stratum")
     p.add_argument("--per-repo-cap", type=int, default=2)
 
@@ -490,18 +521,25 @@ def main(argv: list[str] | None = None) -> int:
 
     c = sub.add_parser("calibration", help="joint calibration units from outside the sample")
     c.add_argument("steps", help="steps.csv (or .csv.gz) from the full run")
-    c.add_argument("--exclude", required=True,
-                   help="precision_sample.csv; its repositories are left out")
+    c.add_argument(
+        "--exclude", required=True, help="precision_sample.csv; its repositories are left out"
+    )
     c.add_argument("-n", type=int, default=30, help="number of calibration units")
 
-    q = sub.add_parser("subsample",
-                       help="shrink the named-agent strata of the drawn precision sample in place")
-    q.add_argument("--total", type=int, default=384,
-                   help="named-agent units: 384 is a +-5%% margin at 95%% confidence")
+    q = sub.add_parser(
+        "subsample", help="shrink the named-agent strata of the drawn precision sample in place"
+    )
+    q.add_argument(
+        "--total",
+        type=int,
+        default=384,
+        help="named-agent units: 384 is a +-5%% margin at 95%% confidence",
+    )
     q.add_argument("--minimum", type=int, default=30, help="minimum units per named stratum")
     q.add_argument("--seed", type=int, default=20261029)
-    q.add_argument("--archive", required=True,
-                   help="directory to copy the current sample and sheets to first")
+    q.add_argument(
+        "--archive", required=True, help="directory to copy the current sample and sheets to first"
+    )
 
     for sp in (p, r, c, q):
         sp.add_argument("-o", "--out-dir", default="validation")
@@ -531,19 +569,27 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(f"total sampled: {len(sample)} (seed {args.seed})", file=sys.stderr)
         if not revisions:
-            print("note: no --revisions given, so actor_gated is blank and Q4 cannot be scored",
-                  file=sys.stderr)
+            print(
+                "note: no --revisions given, so actor_gated is blank and Q4 cannot be scored",
+                file=sys.stderr,
+            )
     elif args.mode == "subsample":
         sample = read_csv(out / "precision_sample.csv")
         strata = read_csv(out / "precision_strata.csv")
         for coder in CODERS:
             sheet = read_csv(out / f"precision_sheet_{coder}.csv")
             if any((r.get("q1_invocation") or "").strip() for r in sheet):
-                raise SystemExit(f"precision_sheet_{coder}.csv holds answers; refusing to subsample")
+                raise SystemExit(
+                    f"precision_sheet_{coder}.csv holds answers; refusing to subsample"
+                )
         archive = Path(args.archive)
         archive.mkdir(parents=True, exist_ok=True)
-        for name in ("precision_sample.csv", "precision_strata.csv",
-                     "precision_sheet_A.csv", "precision_sheet_B.csv"):
+        for name in (
+            "precision_sample.csv",
+            "precision_strata.csv",
+            "precision_sheet_A.csv",
+            "precision_sheet_B.csv",
+        ):
             shutil.copyfile(out / name, archive / name)
         kept, new_strata = subsample_precision(sample, strata, args.total, args.minimum, args.seed)
         write_csv(out / "precision_sample.csv", kept, PRECISION_SAMPLE_FIELDS)
@@ -551,8 +597,11 @@ def main(argv: list[str] | None = None) -> int:
         write_sheets(out, "precision", kept, PRECISION_SHEET_FIELDS, PRECISION_QUESTIONS)
         for row in new_strata:
             print(f"  {row['stratum']} {row['name']:<14}{row['n_sampled']:>5}", file=sys.stderr)
-        print(f"precision sample: {len(sample)} -> {len(kept)} units (seed {args.seed}); "
-              f"previous version in {archive}", file=sys.stderr)
+        print(
+            f"precision sample: {len(sample)} -> {len(kept)} units (seed {args.seed}); "
+            f"previous version in {archive}",
+            file=sys.stderr,
+        )
     elif args.mode == "calibration":
         exclude = {u["repository"] for u in read_csv(args.exclude)}
         sample = sample_calibration(read_csv(args.steps), exclude, args.n, args.seed)
@@ -565,20 +614,32 @@ def main(argv: list[str] | None = None) -> int:
         )
         counts = Counter(u["stratum"] for u in sample)
         print("  ".join(f"{s}={counts[s]}" for s in STRATA if counts[s]), file=sys.stderr)
-        print(f"calibration units: {len(sample)} from {len(sample)} repositories outside "
-              f"the {len(exclude)} in the sample (seed {args.seed})", file=sys.stderr)
+        print(
+            f"calibration units: {len(sample)} from {len(sample)} repositories outside "
+            f"the {len(exclude)} in the sample (seed {args.seed})",
+            file=sys.stderr,
+        )
     else:
         revisions = read_csv(args.revisions)
         sample, pool = sample_recall(
             revisions, Path(args.content_dir), args.n, args.seed, args.keywords
         )
         write_csv(out / "recall_sample.csv", sample, RECALL_SAMPLE_FIELDS)
-        write_csv(out / "recall_pool_size.csv", [{"pool": pool, "sampled": len(sample),
-                  "repositories": len({r['repository'] for r in revisions})}],
-                  ["pool", "sampled", "repositories"])
+        write_csv(
+            out / "recall_pool_size.csv",
+            [
+                {
+                    "pool": pool,
+                    "sampled": len(sample),
+                    "repositories": len({r["repository"] for r in revisions}),
+                }
+            ],
+            ["pool", "sampled", "repositories"],
+        )
         write_sheets(out, "recall", sample, RECALL_SHEET_FIELDS, RECALL_QUESTIONS)
-        print(f"keyword pool: {pool} files, sampled {len(sample)} (seed {args.seed})",
-              file=sys.stderr)
+        print(
+            f"keyword pool: {pool} files, sampled {len(sample)} (seed {args.seed})", file=sys.stderr
+        )
     return 0
 
 

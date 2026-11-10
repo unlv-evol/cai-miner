@@ -37,6 +37,16 @@ OVERALL_STRATA = ("P", "G", "U", "R", "F")
 STRONG_STRATA = ("G", "U", "R", "F")
 WEAK_STRATUM = "W"
 GENERIC_STRATUM = "X"
+# The validation table (manuscripts/shared/table-validation.tex): rows in this
+# order, labelled with the evidence kinds of the paper's Table I.
+TABLE_ROWS = (
+    ("U", "\\code{uses}"),
+    ("R", "\\code{run}"),
+    ("F", "\\code{path}"),
+    ("G", "\\code{ghaw}"),
+    ("P", "unparsed"),
+)
+TABLE_APART = (("W", "weak only"), ("X", "\\code{generic\\_ai}"))
 # Pre-registered (PLAN.md, decision rules): the generic group joins the agentic
 # counts only if the lower bound of its 95% Wilson interval reaches this.
 GENERIC_FOLD_IN = 0.90
@@ -189,8 +199,16 @@ def resolve_q1(
             final[unit_id] = adjudicated[unit_id]
 
     if disagreements:
-        fields = ["unit_id", "permalink", "q1_A", "q1_B", "notes_A", "notes_B",
-                  "q1_final", "rationale"]
+        fields = [
+            "unit_id",
+            "permalink",
+            "q1_A",
+            "q1_B",
+            "notes_A",
+            "notes_B",
+            "q1_final",
+            "rationale",
+        ]
         with adjudication_path.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=fields)
             writer.writeheader()
@@ -210,7 +228,9 @@ def count(n: int) -> str:
     return f"{n:,}".replace(",", "{,}")
 
 
-def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
+def score_precision(
+    directory: Path, macros: dict, report: list[str], table: list[str] | None = None
+) -> bool:
     sheets = load_pair(directory, "precision")
     if sheets is None:
         report.append("precision: no coder sheets yet")
@@ -229,8 +249,7 @@ def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
         macros["kappaOverall"] = f"{kappa:.2f}"
     report.append(
         f"precision: {len(pairs)} units coded by both, {uncoded} not yet; "
-        f"agreement {agree}/{len(pairs)}"
-        + (f", kappa {kappa:.3f}" if kappa is not None else "")
+        f"agreement {agree}/{len(pairs)}" + (f", kappa {kappa:.3f}" if kappa is not None else "")
     )
 
     if uncoded or unresolved:
@@ -240,25 +259,34 @@ def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
         )
         return False
     macros["nSampled"] = count(len(final))
-    macros["nSampledNamed"] = count(
-        sum(1 for u in final if sample[u]["stratum"] in OVERALL_STRATA)
-    )
+    macros["nSampledNamed"] = count(sum(1 for u in final if sample[u]["stratum"] in OVERALL_STRATA))
 
     strict: dict[str, tuple[int, int]] = {}
     lenient: dict[str, tuple[int, int]] = {}
-    report.append(f"  {'stratum':<16}{'n':>5}{'yes':>5}{'maybe':>6}{'no':>4}"
-                  f"{'strict':>9}{'95% Wilson':>17}{'lenient':>9}{'kappa':>7}")
+    tallies: dict[str, Counter] = {}
+    every = Counter(final.values())
+    macros["nFinalYes"] = count(every["yes"])
+    macros["nFinalMaybe"] = count(every["maybe"])
+    macros["nFinalNo"] = count(every["no"])
+    report.append(
+        f"  {'stratum':<16}{'n':>5}{'yes':>5}{'maybe':>6}{'no':>4}"
+        f"{'strict':>9}{'95% Wilson':>17}{'lenient':>9}{'kappa':>7}"
+    )
     for h in population:
         ids = [u for u in final if sample[u]["stratum"] == h]
         if not ids:
             continue
         labels = Counter(final[u] for u in ids)
+        tallies[h] = labels
         n, yes, maybe = len(ids), labels["yes"], labels["maybe"]
         strict[h] = (yes, n)
         lenient[h] = (yes + maybe, n)
         lo, hi = wilson(yes, n)
         h_pairs = [
-            (norm_answer(sheets[0][u]["q1_invocation"], u), norm_answer(sheets[1][u]["q1_invocation"], u))
+            (
+                norm_answer(sheets[0][u]["q1_invocation"], u),
+                norm_answer(sheets[1][u]["q1_invocation"], u),
+            )
             for u in ids
         ]
         hk = cohen_kappa(h_pairs)
@@ -276,12 +304,15 @@ def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
         macros["precisionLow"] = f"{pct(lo)}\\%"
         macros["precisionHigh"] = f"{pct(hi)}\\%"
         loose = weighted_precision(lenient, population, OVERALL_STRATA)
-        report.append(f"  overall (weighted, strict): {pct(p)}% [{pct(lo)}, {pct(hi)}]"
-                      + (f"; lenient {pct(loose[0])}%" if loose else ""))
+        report.append(
+            f"  overall (weighted, strict): {pct(p)}% [{pct(lo)}, {pct(hi)}]"
+            + (f"; lenient {pct(loose[0])}%" if loose else "")
+        )
     if strong:
         macros["precStrong"] = f"{pct(strong[0])}\\%"
-        report.append(f"  strong strata (weighted): {pct(strong[0])}% "
-                      f"[{pct(strong[1])}, {pct(strong[2])}]")
+        report.append(
+            f"  strong strata (weighted): {pct(strong[0])}% [{pct(strong[1])}, {pct(strong[2])}]"
+        )
     if WEAK_STRATUM in strict:
         k, n = strict[WEAK_STRATUM]
         macros["precWeak"] = f"{pct(k / n)}\\%"
@@ -293,9 +324,15 @@ def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
         fold = lo >= GENERIC_FOLD_IN
         report.append(
             f"  generic_ai: {pct(k / n)}% [{pct(lo)}, {pct(hi)}] -> "
-            + ("FOLD IN: lower bound >= 0.90, count it as agentic"
-               if fold else "REPORT SEPARATELY: lower bound < 0.90")
+            + (
+                "FOLD IN: lower bound >= 0.90, count it as agentic"
+                if fold
+                else "REPORT SEPARATELY: lower bound < 0.90"
+            )
         )
+
+    if table is not None:
+        table[:] = validation_table(tallies, overall)
 
     confirmed = [u for u, label in final.items() if label == "yes"]
     sheet_a, sheet_b = sheets
@@ -309,8 +346,10 @@ def score_precision(directory: Path, macros: dict, report: list[str]) -> bool:
     if agent_units:
         right = sum(agent_consensus(u) == sample[u]["agent"].lower() for u in agent_units)
         macros["accAgent"] = pct(right / len(agent_units))
-        report.append(f"  agent label: {right}/{len(agent_units)} correct "
-                      f"(units where both coders named the same agent)")
+        report.append(
+            f"  agent label: {right}/{len(agent_units)} correct "
+            f"(units where both coders named the same agent)"
+        )
 
     return True
 
@@ -328,11 +367,15 @@ def score_recall(directory: Path, macros: dict, report: list[str]) -> bool:
 
     final, pairs, unresolved, uncoded = resolve_q1(directory, "recall", sheets, sample)
     agree = sum(a == b for a, b in pairs)
-    report.append(f"recall: {len(pairs)} units coded by both, {uncoded} not yet; "
-                  f"agreement {agree}/{len(pairs)}")
+    report.append(
+        f"recall: {len(pairs)} units coded by both, {uncoded} not yet; "
+        f"agreement {agree}/{len(pairs)}"
+    )
     if uncoded or unresolved:
-        report.append(f"  {len(unresolved)} disagreement(s) await q1_final in "
-                      "recall_adjudication.csv; misses not reported yet")
+        report.append(
+            f"  {len(unresolved)} disagreement(s) await q1_final in "
+            "recall_adjudication.csv; misses not reported yet"
+        )
         return False
     missed = sum(label == "yes" for label in final.values())
     n = len(final)
@@ -340,9 +383,38 @@ def score_recall(directory: Path, macros: dict, report: list[str]) -> bool:
     macros["nRecallPool"] = count(n)
     macros["nMissed"] = count(missed)
     macros["pctMissed"] = pct(missed / n) if n else "0.0"
-    report.append(f"  missed invocations: {missed}/{n} = {pct(missed / n) if n else 0}% "
-                  f"[{pct(lo)}, {pct(hi)}]")
+    report.append(
+        f"  missed invocations: {missed}/{n} = {pct(missed / n) if n else 0}% "
+        f"[{pct(lo)}, {pct(hi)}]"
+    )
     return True
+
+
+def validation_table(tallies: dict[str, Counter], overall) -> list[str]:
+    """Body rows of the paper's validation table: final answers per evidence
+    kind and strict precision; the named-agent total is population-weighted."""
+
+    def row(label: str, c: Counter, precision: str) -> str:
+        n = c["yes"] + c["maybe"] + c["no"]
+        return f"{label} & {n} & {c['yes']} & {c['maybe']} & {c['no']} & {precision} \\\\"
+
+    lines = ["% Generated by scripts/score_validation.py. Do not edit."]
+    named = Counter()
+    for h, label in TABLE_ROWS:
+        if h in tallies:
+            c = tallies[h]
+            named.update(c)
+            lines.append(row(label, c, pct(c["yes"] / sum(c.values()))))
+    if overall:
+        lines.append("\\midrule")
+        lines.append(row("named agents", named, pct(overall[0])))
+    lines.append("\\midrule")
+    for h, label in TABLE_APART:
+        if h in tallies:
+            c = tallies[h]
+            lines.append(row(label, c, pct(c["yes"] / sum(c.values()))))
+    lines.append("\\bottomrule")
+    return lines
 
 
 def write_tex(path: Path, macros: dict) -> None:
@@ -364,8 +436,9 @@ def main(argv: list[str] | None = None) -> int:
     directory = Path(args.dir)
     macros: dict[str, str] = {}
     report: list[str] = []
+    table: list[str] = []
     try:
-        complete = score_precision(directory, macros, report)
+        complete = score_precision(directory, macros, report, table)
         complete = score_recall(directory, macros, report) and complete
     except LabelError as error:
         print(f"score_validation: {error}", file=sys.stderr)
@@ -374,6 +447,10 @@ def main(argv: list[str] | None = None) -> int:
     print("\n".join(report), file=sys.stderr)
     write_tex(Path(args.tex), macros)
     print(f"wrote {len(macros)} macro(s) to {args.tex}", file=sys.stderr)
+    if table:
+        target = Path(args.tex).with_name("table-validation.tex")
+        target.write_text("\n".join(table) + "\n", encoding="utf-8")
+        print(f"wrote the validation table to {target}", file=sys.stderr)
     return 0 if complete else 1
 
 

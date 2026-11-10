@@ -58,17 +58,13 @@ class WorkflowFacts:
 
     @property
     def strong_agents(self) -> tuple[str, ...]:
-        return tuple(
-            dict.fromkeys(
-                e.agent for e in self.evidence if e.kind in STRONG_EVIDENCE
-            )
-        )
+        return tuple(dict.fromkeys(e.agent for e in self.evidence if e.kind in STRONG_EVIDENCE))
 
     def is_agentic(self, include_weak: bool = False) -> bool:
         return bool(self.agents if include_weak else self.strong_agents)
 
 
-def _as_text(value) -> str:
+def _as_text(value: object) -> str:
     """Flatten an arbitrary YAML subtree into searchable text."""
     if value is None:
         return ""
@@ -83,7 +79,7 @@ def _as_text(value) -> str:
     return str(value)
 
 
-def _normalise_triggers(on_value) -> tuple[str, ...]:
+def _normalise_triggers(on_value: object) -> tuple[str, ...]:
     if on_value is None:
         return ()
     if isinstance(on_value, str):
@@ -95,7 +91,7 @@ def _normalise_triggers(on_value) -> tuple[str, ...]:
     return ()
 
 
-def _env_keys(*scopes) -> list[str]:
+def _env_keys(*scopes: object) -> list[str]:
     keys: list[str] = []
     for scope in scopes:
         if isinstance(scope, dict):
@@ -103,9 +99,7 @@ def _env_keys(*scopes) -> list[str]:
     return keys
 
 
-def _scan_scope_env(
-    config: Config, scope: dict | None, job_id: str | None
-) -> list[Evidence]:
+def _scan_scope_env(config: Config, scope: dict | None, job_id: str | None) -> list[Evidence]:
     """Credential evidence for a workflow- or job-level `env:` block.
 
     Attributed once, at the scope that declares it. Folding these keys into
@@ -180,8 +174,10 @@ def _scan_step(
     index: int,
     step: dict,
 ) -> list[Evidence]:
-    uses_ref = step.get("uses") if isinstance(step.get("uses"), str) else None
-    run_text = step.get("run") if isinstance(step.get("run"), str) else ""
+    uses = step.get("uses")
+    uses_ref = uses if isinstance(uses, str) else None
+    run = step.get("run")
+    run_text = run if isinstance(run, str) else ""
     step_name = step.get("name") if isinstance(step.get("name"), str) else None
     with_text = _as_text(step.get("with"))
     env_text = " ".join(_env_keys(step.get("env")))
@@ -293,9 +289,7 @@ def analyse(config: Config, content: str, file_path: str | None = None) -> Workf
     on_value = document.get("on", document.get(True))
     facts = WorkflowFacts(
         parse_ok=True,
-        workflow_name=(
-            document.get("name") if isinstance(document.get("name"), str) else None
-        ),
+        workflow_name=(document.get("name") if isinstance(document.get("name"), str) else None),
         triggers=_normalise_triggers(on_value),
         permissions=_as_text(document.get("permissions")) or None,
     )
@@ -360,9 +354,7 @@ def group_invocations(evidence: list[Evidence]) -> list[tuple[Evidence, list[Evi
     """
     groups: dict[tuple[str, object], list[Evidence]] = {}
     for item in evidence:
-        scope: object = (
-            (item.job_id, item.step_index) if item.step_index is not None else "file"
-        )
+        scope: object = (item.job_id, item.step_index) if item.step_index is not None else "file"
         groups.setdefault((item.agent, scope), []).append(item)
 
     collapsed: list[tuple[Evidence, list[Evidence]]] = []
@@ -375,9 +367,7 @@ def group_invocations(evidence: list[Evidence]) -> list[tuple[Evidence, list[Evi
 def classify_tasks(config: Config, facts: WorkflowFacts, evidence: Evidence) -> tuple[str, ...]:
     """Assign purpose labels to one agent step."""
     name_blob = " ".join(
-        part
-        for part in (facts.workflow_name, evidence.job_id, evidence.step_name)
-        if part
+        part for part in (facts.workflow_name, evidence.job_id, evidence.step_name) if part
     ).lower()
     labels: list[str] = []
     for task in config.tasks:

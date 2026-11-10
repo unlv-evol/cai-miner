@@ -1,18 +1,141 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "awe-extractor"
+name = "cai-miner"
 version = "0.1.0"
-description = "Agentic Workflow Extractor: mine coding-agent invocations from CI workflow histories"
+description = "Mine coding-agent invocations from the git history of GitHub Actions workflows"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
-license = { text = "MIT" }
+authors = [
+    { name = "Daniel Ogenrwot", email = "ogenrwot@unlv.nevada.edu" },
+    { name = "Jorge Gonzalo Delgado Cervantes", email = "delgaj10@unlv.nevada.edu" },
+    { name = "Woojoong Kim", email = "kimw19@unlv.nevada.edu" },
+    { name = "John Businge", email = "john.businge@unlv.edu" },
+]
+keywords = [
+    "mining software repositories",
+    "github actions",
+    "continuous integration",
+    "coding agents",
+    "llm",
+    "dataset",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Version Control :: Git",
+    "Typing :: Typed",
+]
 dependencies = ["PyYAML>=6.0"]
 
-[project.scripts]
-awe = "awe.cli:main"
+[project.urls]
+Homepage = "https://github.com/unlv-evol/cai-miner"
+Repository = "https://github.com/unlv-evol/cai-miner"
+Issues = "https://github.com/unlv-evol/cai-miner/issues"
+Changelog = "https://github.com/unlv-evol/cai-miner/blob/main/CHANGELOG.md"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[project.scripts]
+cai-miner = "cai_miner.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "cai_miner"
+# The sdist carries the package tests and user docs. The research material in
+# the same repository (paper, dataset scripts, validation) is left out.
+source-include = [
+    "tests/test_cai_miner.py",
+    "docs/catalogue.md",
+    "docs/cloning.md",
+    "docs/ghaw.md",
+    "docs/output.md",
+    "CHANGELOG.md",
+    "CITATION.cff",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.8",
+    "types-PyYAML>=6.0",
+]
+# The scripts behind the GHAgentCI paper and dataset (scripts/, tests/research/).
+research = [
+    "matplotlib>=3.9",
+    "openpyxl>=3.1",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["_archive", "manuscripts", "explorer"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "B",        # flake8-bugbear
+    "UP",       # pyupgrade
+    "SIM",      # flake8-simplify
+    "C4",       # flake8-comprehensions
+    "PTH",      # prefer pathlib
+    "RUF",      # ruff-specific
+]
+ignore = [
+    "E501",     # line length is the formatter's job
+    "RUF001", "RUF002", "RUF003",  # en dashes and similar in prose are intended
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E402"]       # tests load scripts by path before importing helpers
+# Research scripts behind the paper: held to correctness rules, not to idiom.
+"scripts/**" = ["E402", "B007", "B023", "B905", "E731", "PTH", "RUF005", "RUF059"]
+"tests/research/**" = ["E402", "B007", "E741", "RUF059"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--import-mode=importlib"]
+pythonpath = ["tests/research"]
+filterwarnings = ["error::DeprecationWarning:cai_miner.*"]
+
+[tool.coverage.run]
+source = ["cai_miner"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.11"
+files = ["src/cai_miner"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+strict_equality = true

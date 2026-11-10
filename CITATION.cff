@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this tool, please cite it as below."
-title: "awe: Agentic Workflow Extractor"
+title: "cai-miner: Coding-Agent Invocations Miner"
 abstract: >-
   A command line tool that mines the git history of CI workflow files and
   detects coding-agent invocations inside them, including GitHub Agentic
@@ -8,6 +8,8 @@ abstract: >-
   GitHub.
 version: 0.1.0
 license: MIT
+repository-code: "https://github.com/unlv-evol/cai-miner"
+url: "https://pypi.org/project/cai-miner/"
 type: software
 keywords:
   - mining software repositories

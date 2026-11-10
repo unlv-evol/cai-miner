@@ -1,8 +1,8 @@
 # GHAgentCI: dataset README
 
 Histories of GitHub Actions workflow files that invoke a coding agent, mined
-from 196,938 active GitHub repositories with `awe` and the frozen catalogue
-`config/catalogue.toml`. The paper (MSR 2027 Data and Tool Showcase) describes
+from 196,938 active GitHub repositories with cai-miner 0.1.0 (then called `awe`)
+and its bundled frozen catalogue `src/cai_miner/catalogues/catalogue.toml`. The paper (MSR 2027 Data and Tool Showcase) describes
 how it was built and validated; this file documents the tables field by field.
 
 ## Files
@@ -13,7 +13,7 @@ how it was built and validated; this file documents the tables field by field.
 | `revisions.csv.gz` | one touch of one workflow file by one commit, for every file that is agentic at some point |
 | `steps.csv.gz` | one agent invocation in one revision |
 | `ghaw_manifests.csv.gz` | one revision of one GitHub Agentic Workflows (gh-aw) artifact |
-| `content.tar.gz` | every distinct workflow revision of an emitted history, named `<content_sha256>.yml` |
+| `content.tar.gz` | every distinct workflow revision of an emitted history, stored as `content/<content_sha256>.yml` |
 | `frame-2026-10-03.csv` | the sampling frame: SEART metadata plus the `ghagentfiles_comparable` flag |
 
 Tables join on `repository`, on `(repository, uid)` for a file history, and on
@@ -55,7 +55,7 @@ Failed and excluded repositories keep a row, so the frame is the denominator.
 | `permissions` | the workflow-level `permissions:` block, flattened; empty if none (job-level blocks are not included) |
 | `agents`, `strong_agents` | agents with any evidence, and with strong evidence |
 | `n_evidence` | evidence items in the revision |
-| `agentic` | whether the revision carries strong evidence (see "Reproducing the paper") |
+| `agentic` | whether the revision carries strong evidence for a named agent (see "What the release contains") |
 | `actor_gated` | heuristic: an `if:` condition refers to the triggering actor or their association |
 
 `uid` survives content changes and renames; a file deleted and later recreated
@@ -68,7 +68,7 @@ introduced and after it was removed.
 | field | meaning |
 |---|---|
 | `repository`, `uid`, `commit_hash`, `commit_date`, `file_path`, `content_sha256`, `parse_ok` | the revision |
-| `agent` | agent group, e.g. `claude`; `generic_ai` for unattributed Marketplace actions; for gh-aw, the declared engine, `unknown` when the header names none |
+| `agent` | named agent group, e.g. `claude`; for gh-aw, the declared engine, `unknown` when the header names none |
 | `scope` | `step` when located at a job and step; `file` when the evidence concerns the whole workflow (reserved file name, workflow-level credential, gh-aw header) |
 | `evidence_kind` | the deciding evidence: `ghaw`, `uses`, `run`, `path` (strong) or `job`, `url`, `env` (weak) |
 | `evidence_kinds`, `n_evidence` | all evidence collapsed into this invocation |
@@ -96,18 +96,23 @@ empty), `permissions`, `n_evals`, `timeout_minutes`, `max_turns` and
 header fields, sources the frontmatter fields; compilers before schema v4 wrote
 less of the header, so older lock files have empty columns.
 
-## Reproducing the paper's figures
+## What the release contains
 
-The released tables are what `awe` emitted. The paper applies two filters on
-top, both in `scripts/paper_stats.py`:
+The released tables are the dataset exactly as the paper counts it.
+`scripts/build_release.py` applied two filters to cai-miner's output:
 
-1. **Named agents only.** `agentic` and `agents` count the `generic_ai` group
-   too. The paper counts a revision as agentic only with strong evidence for a
-   named agent (any `agent` other than `generic_ai`), and reports
-   generic-only repositories separately.
+1. **Named agents only.** The catalogue's `generic_ai` group (Marketplace
+   actions not attributable to an agent vendor) mixes coding agents with other
+   LLM utilities; only 51% of its sampled matches were agent invocations. It is
+   removed throughout: it has no rows in `steps`, does not appear in `agents`,
+   and does not make a revision agentic. The 417 repositories whose only strong
+   evidence was `generic_ai` are in `repositories` as non-agentic.
 2. **No invocation before 30 November 2022** (the public release of ChatGPT).
    Earlier matches are gh-aw false positives: ordinary
    Markdown files whose frontmatter carries a key such as `tools`.
+
+Running cai-miner itself (see the replication package) yields the unfiltered
+output, `generic_ai` included.
 
 "Latest snapshot" means the last revision of each file history, deleted files
 excluded.

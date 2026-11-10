@@ -27,11 +27,20 @@ import csv
 import gzip
 import random
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
-FIELDS = ["name", "createdAt", "lastCommit", "pushedAt", "commits", "stargazers",
-          "mainLanguage", "isArchived", "ghagentfiles_comparable"]
+FIELDS = [
+    "name",
+    "createdAt",
+    "lastCommit",
+    "pushedAt",
+    "commits",
+    "stargazers",
+    "mainLanguage",
+    "isArchived",
+    "ghagentfiles_comparable",
+]
 
 
 def one_year_before(day: date) -> date:
@@ -85,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     comparable = sum(r["ghagentfiles_comparable"] == "true" for r in kept)
     with (out / f"repos-{tag}.txt").open("w", encoding="utf-8") as handle:
         handle.write(
-            f"# awe sampling frame: {len(names)} repositories from SEART GitHub Search\n"
+            f"# GHAgentCI sampling frame: {len(names)} repositories from SEART GitHub Search\n"
             f"# Export: {export.name} (queried {tag}: non-forks, >= 300 commits)\n"
             f"# Kept here: last commit in [{since}, {until}]; built by scripts/frame_from_seart.py\n"
             f"# {comparable} also created on or before {since} (GHAgentFiles-comparable)\n"
@@ -96,8 +105,11 @@ def main(argv: list[str] | None = None) -> int:
     print(f"export: {len(rows)} repositories", file=sys.stderr)
     for reason, n in dropped.items():
         print(f"  dropped, {reason}: {n}", file=sys.stderr)
-    print(f"frame: {len(kept)} repositories, {comparable} GHAgentFiles-comparable, "
-          f"{len(kept) - comparable} created after {since}", file=sys.stderr)
+    print(
+        f"frame: {len(kept)} repositories, {comparable} GHAgentFiles-comparable, "
+        f"{len(kept) - comparable} created after {since}",
+        file=sys.stderr,
+    )
     print(f"wrote {out / f'frame-{tag}.csv'} and {out / f'repos-{tag}.txt'}", file=sys.stderr)
     return 0
 
