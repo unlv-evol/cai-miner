@@ -1,0 +1,102 @@
+name: Publish to PyPI
+
+# Pushing a version tag (v0.1.0) builds, tests and checks the distributions,
+# publishes them to PyPI through trusted publishing (OIDC, so no API token is
+# stored in the repository), and creates a GitHub Release with the CHANGELOG
+# notes. See CONTRIBUTING.md, "Releasing".
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Verify the tag matches the package version
+        run: |
+          PKG_VERSION="$(uv version --short)"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "tag=$TAG_VERSION package=$PKG_VERSION"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag ($TAG_VERSION) does not match package version ($PKG_VERSION). Bump version in pyproject.toml."
+            exit 1
+          fi
+
+      - name: Run the tests
+        run: |
+          git config --global user.name "CI"
+          git config --global user.email "ci@example.com"
+          git config --global init.defaultBranch main
+          uv sync --locked --all-groups
+          uv run pytest -q
+
+      - name: Build and validate the distribution
+        run: |
+          uv build
+          uvx twine check --strict dist/*
+
+      - name: Smoke-test the wheel
+        run: uvx --from dist/cai_miner-*.whl cai-miner --version
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/cai-miner/
+    permissions:
+      id-token: write   # Trusted Publishing (OIDC): no API token needed.
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create a release
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Extract release notes from CHANGELOG
+        run: python3 .github/scripts/changelog_notes.py "${GITHUB_REF_NAME#v}" > release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "cai-miner $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            dist/*

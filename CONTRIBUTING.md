@@ -72,10 +72,11 @@ Maintainers only.
    `CHANGELOG.md` under the new version.
 2. Check the build locally: `uv build`, then
    `uvx --from dist/cai_miner-*.whl cai-miner --version`.
-3. Commit, tag `vX.Y.Z`, and push the tag. The `release` workflow builds the
-   distributions and publishes them to PyPI through trusted publishing; no API
-   token is stored in the repository.
+3. Commit, tag `vX.Y.Z`, and push the tag. The `publish` workflow tests and
+   builds the distributions, checks them with twine, publishes them to PyPI
+   through trusted publishing (no API token is stored in the repository), and
+   creates a GitHub Release with the CHANGELOG notes and the distributions.
 
 The first release needs a one-time setup on PyPI: add a *pending trusted
 publisher* for the project `cai-miner`, with owner `unlv-evol`, repository
-`cai-miner`, workflow `release.yml` and environment `pypi`.
+`cai-miner`, workflow `publish.yml` and environment `pypi`.

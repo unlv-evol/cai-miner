@@ -6,7 +6,7 @@ All notable changes to cai-miner are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.1.0]
+## [0.1.0] - 2026-11-10
 
 First public release. This is the version GHAgentCI was mined with; until then
 the tool was developed under the working name `awe`.
