@@ -53,7 +53,7 @@ mkdir -p "$PKG/run-logs"
     validation/PLAN.md validation/*.csv \
     validation/labeling/GHAgentCI-coding-guide.pdf validation/labeling/ORGANISER-README.md \
     validation/labeling_src/guide.tex \
-    explorer/app.html explorer/README.md \
+    explorer/app.html explorer/README.md notebooks site \
   ) | (cd "$PKG" && tar xf -)
 
 cp "$ROOT/out/full/RUN.txt" "$PKG/run-logs/full-RUN.txt"

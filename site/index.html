@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GHAgentCI</title>
+<meta name="description" content="GHAgentCI: a dataset of coding-agent invocations in GitHub Actions workflow histories, mined with cai-miner.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230e6a86'/%3E%3Cpath d='M9 22V10h3l4 7 4-7h3v12h-3v-7l-4 6-4-6v7z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Schibsted+Grotesk:wght@600;700&display=swap">
+<style>
+/* Same tokens as the explorer (explorer/app.html), so the two pages read as one site. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --sunk: #eaeef2;
+  --ink: #15191f; --ink-2: #485060; --muted: #6f7787; --line: #d9dfe6;
+  --accent: #0e6a86; --accent-ink: #ffffff; --accent-soft: #dcecf1;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #8a8984;
+  --font-display: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --step--1: 0.8125rem; --step-0: 0.9375rem; --step-1: 1.125rem; --step-2: 1.5rem; --step-3: 2.25rem;
+  --radius: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1116; --surface: #161a21; --sunk: #1d222b;
+  --ink: #e6e9ee; --ink-2: #b2b9c6; --muted: #858d9c; --line: #2b313b;
+  --accent: #56b4d3; --accent-ink: #06222c; --accent-soft: #15323d;
+  --s1: #4d93e8; --s2: #f07c4c; --s3: #2cc28c; --s4: #f2b52c; --s5: #9a9a95;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1116; --surface: #161a21; --sunk: #1d222b;
+  --ink: #e6e9ee; --ink-2: #b2b9c6; --muted: #858d9c; --line: #2b313b;
+  --accent: #56b4d3; --accent-ink: #06222c; --accent-soft: #15323d;
+  --s1: #4d93e8; --s2: #f07c4c; --s3: #2cc28c; --s4: #f2b52c; --s5: #9a9a95;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: 64px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--step-0)/1.6 var(--font-body); }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.2; margin: 0; text-wrap: balance; }
+h2 { font-size: var(--step-2); }
+h3 { font-size: var(--step-1); }
+p { margin: 0; max-width: 72ch; }
+code, pre, .mono { font-family: var(--font-mono); font-size: 0.9em; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; }
+
+/* top bar */
+.top { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 8px 20px; min-height: 52px; flex-wrap: wrap; }
+.logo { font-family: var(--font-display); font-weight: 700; font-size: var(--step-1); color: var(--ink); text-decoration: none; }
+.top nav { display: flex; gap: 2px 14px; flex-wrap: wrap; margin-left: auto; font-size: var(--step--1); }
+.top nav a { color: var(--ink-2); text-decoration: none; padding: 4px 0; }
+.top nav a:hover { color: var(--accent); }
+
+/* hero */
+.hero { padding-block: 56px 40px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.eyebrow { font-family: var(--font-mono); font-size: var(--step--1); color: var(--accent); letter-spacing: 0.04em; text-transform: uppercase; }
+.hero h1 { font-size: var(--step-3); margin-top: 10px; letter-spacing: -0.015em; }
+.hero h1 span { color: var(--accent); }
+.hero .lede { margin-top: 16px; font-size: var(--step-1); color: var(--ink-2); max-width: 64ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* sections */
+section { padding-block: 48px; border-bottom: 1px solid var(--line); }
+section > .wrap > header { margin-bottom: 22px; display: grid; gap: 8px; }
+section > .wrap > header p { color: var(--ink-2); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.stat b { display: block; font-family: var(--font-display); font-size: var(--step-2); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: var(--step--1); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 16px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; min-width: 0; }
+.panel h3 + p { color: var(--muted); font-size: var(--step--1); margin-top: 4px; }
+.chart { margin-top: 12px; position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: var(--step--1); color: var(--ink-2); margin-top: 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 6px 9px; font-size: var(--step--1); box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); white-space: nowrap; display: none; z-index: 2; }
+.bars { display: grid; gap: 6px; margin-top: 12px; }
+.bar { display: grid; grid-template-columns: 96px 1fr 132px; gap: 10px; align-items: center; font-size: var(--step--1); }
+.bar .track { height: 12px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); border-radius: 0 3px 3px 0; }
+.bar .v { color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; background: var(--sunk); }
+tr:last-child td { border-bottom: none; }
+td code { white-space: nowrap; }
+
+/* schema */
+.schema { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.entity { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.entity h3 { font-family: var(--font-mono); font-size: var(--step--1); font-weight: 500; padding: 8px 12px;
+  background: var(--accent-soft); border-bottom: 1px solid var(--line); }
+.entity ul { list-style: none; margin: 0; padding: 8px 12px; font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-2); }
+.entity li { padding: 1px 0; }
+.entity li.key { color: var(--ink); font-weight: 500; }
+.entity li.key::before { content: "◆ "; color: var(--accent); }
+.entity li.more { color: var(--muted); font-family: var(--font-body); font-style: italic; }
+.joins { margin-top: 14px; display: grid; gap: 4px; font-size: var(--step--1); color: var(--ink-2); }
+
+/* notebooks */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; align-content: start; }
+.card .n { font-family: var(--font-mono); font-size: var(--step--1); color: var(--accent); }
+.card p { color: var(--ink-2); font-size: var(--step--1); }
+.card .links { display: flex; gap: 12px; flex-wrap: wrap; font-size: var(--step--1); margin-top: 4px; }
+
+pre { background: var(--sunk); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; overflow-x: auto; margin: 0; line-height: 1.5; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; align-items: start; }
+.two > div { display: grid; gap: 10px; min-width: 0; }
+.copy { float: right; font-size: var(--step--1); padding: 4px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+
+footer { padding-block: 32px 48px; color: var(--muted); font-size: var(--step--1); }
+footer .wrap { display: grid; gap: 6px; }
+
+@media (max-width: 560px) {
+  .hero { padding-block: 36px 28px; }
+  .bar { grid-template-columns: 76px 1fr 96px; }
+  .top nav { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="./">GHAgentCI</a>
+    <nav aria-label="Sections">
+      <a href="explorer/">Explorer</a>
+      <a href="#data">Data</a>
+      <a href="#schema">Schema</a>
+      <a href="#notebooks">Notebooks</a>
+      <a href="#tool">Tool</a>
+      <a href="#cite">Cite</a>
+      <a href="https://github.com/unlv-evol/cai-miner">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Dataset · MSR 2027 Data and Tool Showcase</div>
+    <h1>GHAgent<span>CI</span>: coding agents in CI workflow histories</h1>
+    <p class="lede">Repositories now start coding agents such as Claude Code, Copilot and Codex from GitHub Actions, where they review, triage and change code with the token and secrets the workflow hands them. GHAgentCI holds the complete histories of the workflow files that do this, mined from <b class="num" data-k="mined">196,253</b> active GitHub repositories, with every agent invocation located at the step that makes it.</p>
+    <div class="actions">
+      <a class="btn primary" href="explorer/"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 13V3m0 10h12M5 10l3-3 2 2 4-5"/></svg>Open the explorer</a>
+      <a class="btn" href="https://doi.org/10.5281/zenodo.24088832"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8m0 0L5 7m3 3 3-3M3 13h10"/></svg>Download on Zenodo</a>
+      <a class="btn" href="#notebooks"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 2h8l2 2v10H3zM6 6h4M6 9h4"/></svg>Notebooks</a>
+      <a class="btn" href="https://pypi.org/project/cai-miner/"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m5 5-3 3 3 3m6-6 3 3-3 3M9 3 7 13"/></svg>cai-miner on PyPI</a>
+    </div>
+  </div>
+</div>
+
+<section id="overview">
+  <div class="wrap">
+    <header>
+      <h2>At a glance</h2>
+      <p>Repositories sampled from SEART on 3 October 2026 (non-forks, at least 300 commits, active in the past year) and mined between <span data-k="collected">3 and 5 October 2026</span>. Counts include named agents with strong evidence only.</p>
+    </header>
+    <div class="stats">
+      <div class="stat"><b data-k="agentic_repos">6,345</b><span>repositories that ran an agent from CI</span></div>
+      <div class="stat"><b data-k="still_agentic">4,598</b><span>still running one at collection</span></div>
+      <div class="stat"><b data-k="histories">15,928</b><span>agentic workflow file histories</span></div>
+      <div class="stat"><b data-k="revisions">159,878</b><span>workflow revisions</span></div>
+      <div class="stat"><b data-k="invocations">205,832</b><span>agent invocations, located at their step</span></div>
+      <div class="stat"><b data-k="ghaw_repos">506</b><span>repositories using GitHub Agentic Workflows</span></div>
+    </div>
+
+    <div class="grid2" style="margin-top:20px">
+      <article class="panel">
+        <h3>Repositories running each agent</h3>
+        <p>At the end of each month. A repository leaves a line when it removes that agent.</p>
+        <div class="chart" id="adoption"><p class="muted">Loading…</p></div>
+      </article>
+      <article class="panel">
+        <h3>Adoption by main language</h3>
+        <p>Share of mined repositories that ever ran an agent from CI; languages with at least 1,000 repositories.</p>
+        <div class="bars" id="languages"><p class="muted">Loading…</p></div>
+      </article>
+    </div>
+    <p style="margin-top:16px"><a href="explorer/">The explorer</a> has much more: how agents are wired in, the events that start them, the safeguards around them, how long projects keep them, and every repository's workflow histories.</p>
+  </div>
+</section>
+
+<section id="data">
+  <div class="wrap">
+    <header>
+      <h2>What is included</h2>
+      <p>All files are on Zenodo under <a href="https://doi.org/10.5281/zenodo.24088832">doi:10.5281/zenodo.24088832</a>, released under CC BY 4.0. Author and committer emails are replaced by a salted hash; names are kept as git records them. Every column is documented in <a href="https://github.com/unlv-evol/cai-miner/blob/main/docs/DATASET.md">DATASET.md</a>.</p>
+    </header>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>File</th><th>One row per</th><th>Size</th></tr></thead>
+        <tbody>
+          <tr><td><code>repositories.csv.gz</code></td><td>repository of the sampling frame, agentic or not, including those that could not be mined</td><td class="num">4 MB</td></tr>
+          <tr><td><code>revisions.csv.gz</code></td><td>change to a workflow file whose history is agentic at some point, from its creation to its deletion</td><td class="num">17 MB</td></tr>
+          <tr><td><code>steps.csv.gz</code></td><td>agent invocation: agent, evidence, job and step, action and version, triggers, purpose</td><td class="num">10 MB</td></tr>
+          <tr><td><code>ghaw_manifests.csv.gz</code></td><td>revision of a GitHub Agentic Workflows source or compiled file: engine, tools, permitted outputs, network, sandbox</td><td class="num">2 MB</td></tr>
+          <tr><td><code>content.tar.gz</code></td><td>distinct workflow revision, as <code>content/&lt;sha256&gt;.yml</code></td><td class="num">808 MB</td></tr>
+          <tr><td><code>frame-2026-10-03.csv.gz</code></td><td>repository of the sampling frame, with SEART metadata (language, stars, creation date)</td><td class="num">7 MB</td></tr>
+          <tr><td><code>replication.tar.gz</code></td><td>the tool, run logs, scripts and validation material to rebuild the dataset and the paper's numbers</td><td class="num">123 MB</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="schema">
+  <div class="wrap">
+    <header>
+      <h2>Relational schema</h2>
+      <p>Four tables plus the content store. A file's history is identified by <code>(repository, uid)</code>: the <code>uid</code> survives renames and content changes.</p>
+    </header>
+    <div class="schema">
+      <div class="entity"><h3>repositories</h3><ul>
+        <li class="key">repository</li><li>n_commits</li><li>n_workflow_files</li><li>n_agentic_files</li><li>agents</li><li>first_agentic_date</li><li>last_agentic_date</li><li>status</li><li class="more">+ blob accounting</li></ul></div>
+      <div class="entity"><h3>revisions</h3><ul>
+        <li class="key">repository</li><li class="key">uid</li><li class="key">commit_hash</li><li>commit_date</li><li>file_path</li><li>git_change_type</li><li>content_sha256</li><li>triggers</li><li>permissions</li><li>agents</li><li>agentic</li><li>actor_gated</li><li class="more">+ git metadata</li></ul></div>
+      <div class="entity"><h3>steps</h3><ul>
+        <li class="key">repository</li><li class="key">uid</li><li class="key">commit_hash</li><li>agent</li><li>evidence_kind</li><li>scope</li><li>job_id</li><li>step_index</li><li>action</li><li>action_version</li><li>triggers</li><li>tasks</li></ul></div>
+      <div class="entity"><h3>ghaw_manifests</h3><ul>
+        <li class="key">repository</li><li class="key">uid</li><li class="key">commit_hash</li><li>artifact_kind</li><li>agent_id</li><li>compiler_version</li><li>tools</li><li>safe_outputs</li><li>network</li><li>sandboxed</li><li class="more">+ counts</li></ul></div>
+      <div class="entity"><h3>content/&lt;sha256&gt;.yml</h3><ul>
+        <li class="key">content_sha256</li><li>the workflow file as committed</li></ul></div>
+    </div>
+    <div class="joins">
+      <div><b>repositories</b> 1 — n <b>revisions</b> on <code>repository</code>; a history is <code>(repository, uid)</code>.</div>
+      <div><b>revisions</b> 1 — n <b>steps</b> and 1 — 1 <b>ghaw_manifests</b> on <code>(repository, uid, commit_hash)</code>.</div>
+      <div><b>revisions</b> n — 1 <b>content</b> on <code>content_sha256</code>; <b>frame</b> joins <b>repositories</b> on <code>name = repository</code>.</div>
+    </div>
+  </div>
+</section>
+
+<section id="notebooks">
+  <div class="wrap">
+    <header>
+      <h2>Explore the data in a notebook</h2>
+      <p>Each notebook downloads what it needs from Zenodo and runs as is on Google Colab, or locally with <code>uv run --group notebooks jupyter lab</code>.</p>
+    </header>
+    <div class="cards">
+      <div class="card"><span class="n">01</span><h3>Getting started</h3><p>Load the tables, see how they join, and reproduce the headline numbers.</p>
+        <div class="links"><a href="https://colab.research.google.com/github/unlv-evol/cai-miner/blob/main/notebooks/01-getting-started.ipynb">Open in Colab</a><a href="https://github.com/unlv-evol/cai-miner/blob/main/notebooks/01-getting-started.ipynb">View</a></div></div>
+      <div class="card"><span class="n">02</span><h3>Adoption over time</h3><p>When repositories adopt agents, which agents, in which languages, and how many stop.</p>
+        <div class="links"><a href="https://colab.research.google.com/github/unlv-evol/cai-miner/blob/main/notebooks/02-adoption-over-time.ipynb">Open in Colab</a><a href="https://github.com/unlv-evol/cai-miner/blob/main/notebooks/02-adoption-over-time.ipynb">View</a></div></div>
+      <div class="card"><span class="n">03</span><h3>Triggers and safeguards</h3><p>Which events start agents, who may trigger them, their permissions, and how actions are pinned.</p>
+        <div class="links"><a href="https://colab.research.google.com/github/unlv-evol/cai-miner/blob/main/notebooks/03-triggers-and-safeguards.ipynb">Open in Colab</a><a href="https://github.com/unlv-evol/cai-miner/blob/main/notebooks/03-triggers-and-safeguards.ipynb">View</a></div></div>
+      <div class="card"><span class="n">04</span><h3>gh-aw and workflow content</h3><p>GitHub Agentic Workflows manifests, and reading a workflow's YAML from the content store.</p>
+        <div class="links"><a href="https://colab.research.google.com/github/unlv-evol/cai-miner/blob/main/notebooks/04-gh-aw-and-workflow-content.ipynb">Open in Colab</a><a href="https://github.com/unlv-evol/cai-miner/blob/main/notebooks/04-gh-aw-and-workflow-content.ipynb">View</a></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="tool">
+  <div class="wrap">
+    <header>
+      <h2>Mine your own repositories with cai-miner</h2>
+      <p>The dataset was built with <a href="https://github.com/unlv-evol/cai-miner">cai-miner</a>, an open-source tool that parses every revision of every workflow file and classifies agent evidence into strong and weak tiers. It works on local clones and needs no API token.</p>
+    </header>
+    <div class="two">
+      <div>
+        <h3>Install and run</h3>
+<pre><code>pip install cai-miner
+
+git clone --filter=blob:limit=64k --no-checkout \
+    https://github.com/OWNER/NAME.git clone
+cai-miner clone -o out/</code></pre>
+      </div>
+      <div>
+        <h3>Load the dataset with pandas</h3>
+<pre><code>import pandas as pd
+base = "https://zenodo.org/records/24088832/files"
+steps = pd.read_csv(f"{base}/steps.csv.gz?download=1")
+steps.groupby("agent").repository.nunique()</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="wrap">
+    <header>
+      <h2>Cite</h2>
+      <p>The accompanying paper is under review at the MSR 2027 Data and Tool Showcase Track. Until it is published, please cite the dataset:</p>
+    </header>
+<pre id="bibtex"><button class="copy" type="button" data-copy="bibtex">Copy</button><code>@dataset{ogenrwot2026ghagentci,
+  author    = {Ogenrwot, Daniel and Delgado Cervantes, Jorge Gonzalo and
+               Kim, Woojoong and Businge, John},
+  title     = {{GHAgentCI}: A Dataset of Coding-Agent Invocations in
+               {CI} Workflow Histories},
+  year      = {2026},
+  publisher = {Zenodo},
+  version   = {2026-11-09},
+  doi       = {10.5281/zenodo.24088832},
+  url       = {https://doi.org/10.5281/zenodo.24088832}
+}</code></pre>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>Daniel Ogenrwot, Jorge Gonzalo Delgado Cervantes, Woojoong Kim and John Businge · University of Nevada, Las Vegas</div>
+    <div>Data: CC BY 4.0 · cai-miner: MIT · <a href="https://github.com/unlv-evol/cai-miner">github.com/unlv-evol/cai-miner</a></div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const fmt = n => n.toLocaleString("en-US");
+  const fmtDate = s => new Date(s + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, parent) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+
+  // Copy buttons
+  document.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+    const text = document.getElementById(b.dataset.copy).querySelector("code").textContent;
+    try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { b.textContent = "Select and copy"; }
+    setTimeout(() => (b.textContent = "Copy"), 1600);
+  }));
+
+  // Line chart of repositories per agent at each month end, with a crosshair tooltip.
+  function adoption(box, a) {
+    const W = 560, H = 280, m = { t: 12, r: 72, b: 28, l: 44 };
+    const months = a.months, series = a.series;
+    const max = Math.max(...series.flatMap(s => s.values));
+    const step = Math.pow(10, Math.floor(Math.log10(max))) / (max / Math.pow(10, Math.floor(Math.log10(max))) > 5 ? 1 : 2);
+    const top = Math.ceil(max / step) * step;
+    const x = i => m.l + (i / (months.length - 1)) * (W - m.l - m.r);
+    const y = v => H - m.b - (v / top) * (H - m.t - m.b);
+    box.textContent = "";
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Repositories running each agent, by month" }, box);
+    for (let v = 0; v <= top; v += step) {
+      el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: "var(--line)" }, svg);
+      el("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--muted)" }, svg).textContent = fmt(v);
+    }
+    months.forEach((mo, i) => {
+      if (mo.endsWith("-01") || i === 0) {
+        el("text", { x: x(i), y: H - 8, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" }, svg).textContent =
+          mo.endsWith("-01") ? mo.slice(0, 4) : new Date(mo + "-01T00:00:00Z").toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" });
+      }
+    });
+    const colors = ["var(--s1)", "var(--s2)", "var(--s3)", "var(--s4)", "var(--s5)"];
+    const ends = [];
+    series.forEach((s, k) => {
+      el("path", { d: s.values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(""),
+        fill: "none", stroke: colors[k], "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+      ends.push({ k, y: y(s.values[s.values.length - 1]), name: s.name });
+    });
+    // Direct labels at the line ends, nudged apart.
+    ends.sort((p, q) => p.y - q.y);
+    for (let i = 1; i < ends.length; i++) ends[i].y = Math.max(ends[i].y, ends[i - 1].y + 13);
+    ends.forEach(e => {
+      el("text", { x: W - m.r + 6, y: e.y + 4, "font-size": 11, fill: "var(--ink-2)" }, svg).textContent = e.name;
+    });
+    const legend = document.createElement("div");
+    legend.className = "legend";
+    legend.innerHTML = series.map((s, k) => `<span><i style="background:${colors[k]}"></i>${s.name}</span>`).join("");
+    box.appendChild(legend);
+
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    box.appendChild(tip);
+    const cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--muted)", "stroke-dasharray": "3 3", visibility: "hidden" }, svg);
+    const hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+    const move = ev => {
+      const r = svg.getBoundingClientRect();
+      const px = (ev.clientX - r.left) * (W / r.width);
+      const i = Math.max(0, Math.min(months.length - 1, Math.round(((px - m.l) / (W - m.l - m.r)) * (months.length - 1))));
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      const label = new Date(months[i] + "-01T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+      tip.innerHTML = `<b>${label}</b><br>` + series.map((s, k) => `<i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${colors[k]};margin-right:6px"></i>${s.name}: ${fmt(s.values[i])}`).join("<br>");
+      tip.style.display = "block";
+      const left = (x(i) / W) * r.width;
+      tip.style.left = Math.min(left + 12, r.width - tip.offsetWidth) + "px";
+      tip.style.top = "8px";
+    };
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
+  }
+
+  function languages(box, rows) {
+    const list = [...rows].sort((p, q) => q.rate - p.rate || q.mined - p.mined);
+    const max = Math.max(...list.map(r => r.rate));
+    box.innerHTML = list.map(r => `
+      <div class="bar" title="${r.key}: ${fmt(r.agentic)} of ${fmt(r.mined)} repositories">
+        <span>${r.key}</span>
+        <span class="track"><span class="fill" style="width:${(100 * r.rate / max).toFixed(1)}%;display:block"></span></span>
+        <span class="v">${r.rate.toFixed(1)}% <span class="muted">of ${fmt(r.mined)}</span></span>
+      </div>`).join("");
+  }
+
+  fetch("explorer/data/summary.json").then(r => r.json()).then(s => {
+    const v = s.views.all, t = v.totals;
+    const values = { ...t, mined: s.mined };
+    document.querySelectorAll("[data-k]").forEach(n => {
+      const k = n.dataset.k;
+      if (k === "collected") {
+        const [a, b] = s.collected;
+        n.textContent = `${fmtDate(a)} and ${fmtDate(b)}`;
+      } else if (k in values) n.textContent = fmt(values[k]);
+    });
+    adoption(document.getElementById("adoption"), v.adoption);
+    languages(document.getElementById("languages"), v.rates.languages);
+  }).catch(() => {
+    for (const id of ["adoption", "languages"])
+      document.getElementById(id).innerHTML = '<p class="muted">The charts could not be loaded. They are also in the <a href="explorer/">explorer</a>.</p>';
+  });
+})();
+</script>
+</body>
+</html>

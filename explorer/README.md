@@ -49,6 +49,19 @@ Author and committer names and emails are never written to the app's data;
 whether the dataset release publishes them is still open.
 `tests/test_build_explorer.py` checks this.
 
+## The website
+
+The explorer is published on GitHub Pages under the dataset's landing page
+(`site/index.html`), at <https://unlv-evol.github.io/cai-miner/>. The `Website`
+workflow downloads the released tables from Zenodo and runs
+`scripts/build_site.py`, which builds the explorer from them; built from the
+release, its data is identical to a build from `out/full`. To preview it:
+
+```bash
+uv run python scripts/build_site.py out/zenodo -o _site   # or any folder with the released tables
+python3 -m http.server -d _site 8000
+```
+
 ## Publishing
 
 `app.html` is written for the claude.ai artifact viewer, which wraps the page

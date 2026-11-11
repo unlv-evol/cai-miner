@@ -15,7 +15,8 @@ that produced the dataset, plus the logs of the mining run.
 | `validation/` | samples, both coders' labels, adjudication, the coding guide and the validation plan |
 | `tests/` | tests of the tool and of the scripts |
 | `docs/` | tool documentation; `docs/DATASET.md` is the dataset README |
-| `explorer/` | source of the interactive dataset explorer |
+| `explorer/`, `site/` | source of the interactive dataset explorer and the dataset website |
+| `notebooks/` | Jupyter notebooks that load the released tables and run simple analyses |
 
 ## Setup
 

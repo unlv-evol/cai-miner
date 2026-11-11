@@ -1,0 +1,64 @@
+name: Website
+
+# Builds the GHAgentCI website (landing page and explorer) from the released
+# tables on Zenodo and deploys it to GitHub Pages. Runs when the site or its
+# build changes, and on demand.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "explorer/app.html"
+      - "scripts/build_site.py"
+      - "scripts/build_explorer.py"
+      - "scripts/paper_stats.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # The Zenodo record the site is built from.
+  ZENODO_RECORD: "24088832"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Download the released tables
+        run: |
+          mkdir -p release
+          for t in repositories revisions steps ghaw_manifests; do
+            curl -fsSL --retry 3 -o "release/$t.csv.gz" \
+              "https://zenodo.org/records/$ZENODO_RECORD/files/$t.csv.gz?download=1"
+          done
+          ls -l release
+
+      - name: Build the site
+        run: |
+          uv sync --locked
+          uv run python scripts/build_site.py release -o _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -509,8 +509,8 @@ def analysis(d: Dataset, first_run: date) -> dict[str, str]:
         # Codex repositories have a year of follow-up.
         codex = [(t, gone) for t, gone, agents in lives if "codex" in agents]
         if codex:
-            curve = kaplan_meier(codex)
-            reach = max((t for t, _, n in curve if n >= 50), default=0)
+            codex_curve = kaplan_meier(codex)
+            reach = max((t for t, _, n in codex_curve if n >= 50), default=0)
             m["codexReachMonths"] = f"{round(reach / (365.25 / 12))}"
             m["nCodexYear"] = count(sum(1 for t, _ in codex if t >= 365))
         # One, three and twelve months (of 30.44 days), as ticked in Fig. 3.

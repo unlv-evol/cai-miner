@@ -154,9 +154,12 @@ between minor versions before 1.0.
 ## Reproducing GHAgentCI
 
 The GHAgentCI dataset and its replication package are archived on Zenodo at
-[doi:10.5281/zenodo.24088832](https://doi.org/10.5281/zenodo.24088832). This
-repository also holds the scripts and validation material behind it; they are
-not part of the installed package:
+[doi:10.5281/zenodo.24088832](https://doi.org/10.5281/zenodo.24088832). Browse it
+in the [GHAgentCI explorer](https://unlv-evol.github.io/cai-miner/), or start
+from the [notebooks](https://github.com/unlv-evol/cai-miner/tree/main/notebooks),
+which load the data and run simple analyses (they also run on Google Colab).
+This repository also holds the scripts and validation material behind the
+dataset; they are not part of the installed package:
 
 - [`docs/FULL_RUN.md`](https://github.com/unlv-evol/cai-miner/blob/main/docs/FULL_RUN.md): how the full mining run was set up, monitored and resumed;
 - [`docs/DATASET.md`](https://github.com/unlv-evol/cai-miner/blob/main/docs/DATASET.md): the released tables, field by field;

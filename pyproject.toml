@@ -73,6 +73,14 @@ dev = [
     "ruff>=0.8",
     "types-PyYAML>=6.0",
 ]
+notebooks = [
+    "ipykernel>=7.4.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.2",
+    "nbconvert>=7.17.2",
+    "pandas>=2.2",
+    "pyyaml>=6.0.3",
+]
 # The scripts behind the GHAgentCI paper and dataset (scripts/, tests/research/).
 research = [
     "matplotlib>=3.9",
@@ -110,6 +118,8 @@ ignore = [
 # Research scripts behind the paper: held to correctness rules, not to idiom.
 "scripts/**" = ["E402", "B007", "B023", "B905", "E731", "PTH", "RUF005", "RUF059"]
 "tests/research/**" = ["E402", "B007", "E741", "RUF059"]
+# pandas masks need `== True/False`; notebooks import where they first need a module.
+"notebooks/**" = ["E402", "E712", "B905", "RUF005"]
 
 [tool.ruff.format]
 quote-style = "double"

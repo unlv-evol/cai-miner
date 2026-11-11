@@ -48,3 +48,4 @@ validation/labeling_src/*.out
 dist/
 .ruff_cache/
 .mypy_cache/
+_site/

@@ -341,7 +341,15 @@ def repositories(d_all: ps.Dataset, d_exp: ps.Dataset) -> tuple[list[dict], dict
     rows, shards = [], defaultdict(dict)
     for repo, keys in per_repo.items():
         files, ever, now, first, last = [], set(), set(), None, None
-        for key in sorted(keys, key=lambda k: d_all.histories[k][-1]["file_path"]):
+
+        # Path, then first revision, then uid: a path can hold several
+        # histories (a file deleted and recreated), and their order must not
+        # depend on the order of the input rows.
+        def order(k: tuple) -> tuple:
+            revs = d_all.histories[k]
+            return (revs[-1]["file_path"], revs[0]["_order"][0], k[1])
+
+        for key in sorted(keys, key=order):
             revs = d_all.histories[key]
             agentic_revs = [r for r in revs if d_all.agents(r)]
             ref = agentic_revs[-1]
@@ -449,6 +457,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("out", help="mining output directory (merged CSVs)")
     parser.add_argument("-o", "--explorer", default=str(EXPLORER), help="app directory")
+    parser.add_argument(
+        "--collected",
+        nargs=2,
+        metavar=("FIRST", "LAST"),
+        type=date.fromisoformat,
+        help="first and last day of mining, for input without the run's RUN.txt "
+        "(such as the released tables)",
+    )
     args = parser.parse_args(argv)
     out, explorer = Path(args.out), Path(args.explorer)
 
@@ -457,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     d_all = ps.Dataset(out, include_generic=False)
     d_exp = ps.Dataset(out, include_generic=False, keep=explicit_only)
-    first_run, last_run = ps.run_dates(out)
+    first_run, last_run = args.collected or ps.run_dates(out)
 
     summary = {
         "built": date.today().isoformat(),
@@ -476,7 +492,8 @@ def main(argv: list[str] | None = None) -> int:
     rows, shards = repositories(d_all, d_exp)
     size += write_json(explorer / "data" / "repos.json", rows)
     for n in range(SHARDS):
-        size += write_json(explorer / "data" / "shards" / f"{n:02d}.json", shards.get(n, {}))
+        shard = dict(sorted(shards.get(n, {}).items()))  # independent of input order
+        size += write_json(explorer / "data" / "shards" / f"{n:02d}.json", shard)
     if (explorer / "app.html").exists():
         write_index(explorer)
     print(
